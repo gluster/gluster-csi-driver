@@ -1,0 +1,28 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "name": "redis",
+        "labels": {
+            "name": "redis"
+        }
+    },
+    "spec": {
+        "containers": [{
+            "name": "redis",
+            "image": "redis",
+            "imagePullPolicy": "IfNotPresent",
+            "volumeMounts": [{
+                "mountPath": "/mnt/gluster",
+                "name": "glustercsivol"
+            }]
+        }],
+       "volumes": [{
+            "name": "glustercsivol",
+            "persistentVolumeClaim": {
+                "claimName": "gd2-csi-volume"
+            }
+        }]
+    }
+}
+

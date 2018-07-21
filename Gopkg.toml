@@ -1,0 +1,28 @@
+
+[[constraint]]
+  name = "github.com/container-storage-interface/spec"
+  version = "0.3.0"
+
+[[constraint]]
+  name = "github.com/gluster/glusterd2"
+  version = "master"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/golang/glog"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/kubernetes-csi/drivers"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "0.0.3"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.14.0"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.11.1"
