@@ -18,7 +18,7 @@ spec:
     spec:
       hostNetwork: true
       containers:
-      - image: docker.io/humblec/glusterd2
+      - image: docker.io/gluster/glusterd2-nightly
         imagePullPolicy: IfNotPresent
         name: glusterfs
         resources:
@@ -30,7 +30,7 @@ spec:
           mountPath: "/run"
         - name: glusterfs-lvm
           mountPath: "/run/lvm"
-        - mountPath: /usr/local/var/lib/glusterd2
+        - mountPath: /var/lib/glusterd2
           name: glusterd2-config
         - name: glusterfs-etc
           mountPath: "/etc/glusterfs"
@@ -84,5 +84,3 @@ spec:
       - name: kernel-modules
         hostPath:
           path: "/usr/lib/modules"
-
-

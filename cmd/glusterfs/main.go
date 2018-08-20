@@ -47,10 +47,13 @@ func main() {
 }
 
 func handle(config *utils.Config) {
-	ep := os.Getenv("CSI_ENDPOINT")
 	if config.Endpoint == "" {
-		config.Endpoint = ep
+		config.Endpoint = os.Getenv("CSI_ENDPOINT")
 	}
 	d := gfd.New(config)
+	if d == nil {
+		fmt.Println("Failed to initialize driver")
+		os.Exit(1)
+	}
 	d.Run()
 }

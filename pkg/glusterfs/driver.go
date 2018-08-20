@@ -2,8 +2,8 @@ package glusterfs
 
 import (
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
-	"github.com/gluster/glusterd2/pkg/restclient"
 
+	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
@@ -25,7 +25,7 @@ func New(config *utils.Config) *GfDriver {
 
 	if config != nil {
 		gfd.Config = config
-		gfd.client = restclient.New(config.RestURL, config.RestUser, config.RestSecret, "", false)
+		gfd.client, _ = restclient.New(config.RestURL, config.RestUser, config.RestSecret, "", false)
 	} else {
 		glog.Errorf("GlusterFS CSI Driver initialization failed")
 		return nil

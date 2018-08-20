@@ -52,12 +52,12 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: docker.io/humblec/glusterfs-csi-driver:v1.0.6
+          image: docker.io/gluster/glusterfs-csi-driver
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--glusterurl=http://192.168.121.37:24007"
-            - "--secret=4abaf57aaf8413f1f1e37054f1b939cf3c7afe73a9530f378a9f43a62876c9d8"
+            - "--resturl=$(REST_URL)"
+            - "--restsecret=$(REST_SECRET)"
           env:
             - name: NODE_ID
               valueFrom:
@@ -65,6 +65,10 @@ spec:
                   fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://192.168.121.182:24007
+            - name: REST_SECRET
+              value: b03045b7988258557ecd3e136cd37ba3f928ea0831b3b1b7ed8ae238d36d9071
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: plugin-dir

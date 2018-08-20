@@ -6,6 +6,15 @@ This repo contains CSI driver for Gluster. The Container Storage Interface (CSI)
 
 [![GlusterFS CSI driver Demo](https://asciinema.org/a/195024.png)](https://asciinema.org/a/195024)
 
+## Building GlusterFS CSI driver
+
+This repository consists of Dockerfile for GlusterFS CSI dirver to build on  CentOS
+distribution. Once you clone the repository, to build the image, run the following command:
+
+```
+#docker build -t glusterfs-csi-driver -f pkg/glusterfs/Dockerfile .
+```
+
 ## Testing GlusterFS CSI driver
 
 ### Deploy kubernetes Cluster
@@ -22,11 +31,11 @@ This repo contains CSI driver for Gluster. The Container Storage Interface (CSI)
 
 ### Create a storage class
 ~~~
-[root@localhost cluster]# cat csi-sc.yaml 
+[root@localhost cluster]# cat sc.yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: glusterfscsi
+  name: glusterfs-csi
   annotations:
     storageclass.beta.kubernetes.io/is-default-class: "true"
 provisioner: org.gluster.glusterfs
@@ -35,61 +44,54 @@ provisioner: org.gluster.glusterfs
 
 ### Create PersistentVolumeClaim
 ~~~
-[root@localhost cluster]# cat glusterfs-pvc-gd2-csi-volume_fast.yaml 
-{
-   "kind": "PersistentVolumeClaim",
-   "apiVersion": "v1",
-   "metadata": {
-     "name": "gd2-csi-volume",
-     "annotations": {
-     "volume.beta.kubernetes.io/storage-class": "glusterfscsi"
-     }
-   },
-   "spec": {
-     "accessModes": [
-       "ReadWriteMany"
-     ],
-    "resources": {
-       "requests": {
-         "storage": "4Gi"
-       }
-     }
-   }
-}
+[root@localhost cluster]# cat pvc.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: glusterfs-csi-pv
+  annotations:
+    volume.beta.kubernetes.io/storage-class: glusterfs-csi
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
 
-[root@localhost cluster]# kubectl create -f pvc.json
+[root@localhost cluster]# kubectl create -f pvc.yaml
+persistentvolumeclaim/glusterfs-csi-pv created
 ~~~
 Validate the claim creation
 
 ~~~
 [root@localhost cluster]# kubectl get pvc
 NAME      STATUS    VOLUME                                                        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-gd2-csi-volume   Bound     pvc-d1ecc7f4981911e8       4Gi        RWX            glusterfscsi   35m
-[root@localhost cluster]# 
+glusterfs-csi-pv   Bound     pvc-953d21f5a51311e8   5Gi        RWX            glusterfs-csi   3s
 ~~~
 
 ~~~
-[root@localhost kubernetes]# kubectl describe pvc
-Name:          gd2-csi-volume
+[root@localhost cluster]# kubectl describe pvc
+Name:          glusterfs-csi-pv
 Namespace:     default
-StorageClass:  glusterfscsi
+StorageClass:  glusterfs-csi
 Status:        Bound
-Volume:        pvc-d1ecc7f4981911e8
+Volume:        pvc-953d21f5a51311e8
 Labels:        <none>
-Annotations:   control-plane.alpha.kubernetes.io/leader={"holderIdentity":"79e518d1-fd17-11e7-ac3c-c85b7636c232","leaseDurationSeconds":15,"acquireTime":"2018-01-19T12:51:32Z","renewTime":"2018-01-19T12:51:34Z","lea...
+Annotations:   control-plane.alpha.kubernetes.io/leader={"holderIdentity":"874a6cc9-a511-11e8-bae2-0a580af40202","leaseDurationSeconds":15,"acquireTime":"2018-08-21T07:26:58Z","renewTime":"2018-08-21T07:27:00Z","lea...
                pv.kubernetes.io/bind-completed=yes
                pv.kubernetes.io/bound-by-controller=yes
-               volume.beta.kubernetes.io/storage-class=glusterfscsi
+               volume.beta.kubernetes.io/storage-class=glusterfs-csi
                volume.beta.kubernetes.io/storage-provisioner=org.gluster.glusterfs
-Finalizers:    []
-Capacity:      4Gi
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      5Gi
 Access Modes:  RWX
 Events:
-  Type    Reason                 Age              From                                                                            Message
-  ----    ------                 ----             ----                                                                            -------
-  Normal  ExternalProvisioning   5m (x7 over 6m)  persistentvolume-controller                                                     waiting for a volume to be created, either by external provisioner "org.gluster.glusterfs" or manually created by system administrator
-  Normal  Provisioning           5m               org.gluster.glusterfs localhost.localdomain 79e518d1-fd17-11e7-ac3c-c85b7636c232  External provisioner is provisioning volume for claim "default/gd2-csi-volume"
-  Normal  ProvisioningSucceeded  5m               org.gluster.glusterfs localhost.localdomain 79e518d1-fd17-11e7-ac3c-c85b7636c232  Successfully provisioned volume pvc-d1ecc7f4981911e8
+  Type    Reason                 Age                From                                                                                          Message
+  ----    ------                 ----               ----                                                                                          -------
+  Normal  ExternalProvisioning   30s (x2 over 30s)  persistentvolume-controller                                                                   waiting for a volume to be created, either by external provisioner "org.gluster.glusterfs" or manually created by system administrator
+  Normal  Provisioning           30s                org.gluster.glusterfs csi-provisioner-glusterfsplugin-0 874a6cc9-a511-11e8-bae2-0a580af40202  External provisioner is provisioning volume for claim "default/glusterfs-csi-pv"
+  Normal  ProvisioningSucceeded  29s                org.gluster.glusterfs csi-provisioner-glusterfsplugin-0 874a6cc9-a511-11e8-bae2-0a580af40202  Successfully provisioned volume pvc-953d21f5a51311e8
 ~~~
 
 
@@ -97,22 +99,22 @@ Verify PV details:
 
 ~~~
 [root@localhost cluster]# kubectl describe pv
-Name:            kubernetes-dynamic-pvc-ad8014ec-febd-11e7-bf55-c85b7636c232
+Name:            pvc-953d21f5a51311e8
 Labels:          <none>
-Annotations:     csi.volume.kubernetes.io/volume-attributes={"glusterserver":"172.18.0.3","glustervol":"pvc-d1ecc7f4981911e8"}
-                 csiProvisionerIdentity=1516547610828-8081-org.gluster.glusterfs
-                 pv.kubernetes.io/provisioned-by=org.gluster.glusterfs
-StorageClass:    glusterfscsi
+Annotations:     pv.kubernetes.io/provisioned-by=org.gluster.glusterfs
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:    glusterfs-csi
 Status:          Bound
-Claim:           default/gd2-csi-volume
+Claim:           default/glusterfs-csi-pv
 Reclaim Policy:  Delete
 Access Modes:    RWX
-Capacity:        4Gi
-Message:
+Capacity:        5Gi
+Node Affinity:   <none>
+Message:         
 Source:
     Type:          CSI (a Container Storage Interface (CSI) volume source)
     Driver:        org.gluster.glusterfs
-    VolumeHandle: pvc-d1ecc7f4981911e8
+    VolumeHandle:  pvc-953d21f5a51311e8
     ReadOnly:      false
 Events:            <none>
 ~~~
@@ -121,42 +123,35 @@ Events:            <none>
 ### Create a pod with this claim
 ~~~
 
-[root@master vagrant]# cat app.json 
-{
-    "apiVersion": "v1",
-    "kind": "Pod",
-    "metadata": {
-        "name": "redis",
-        "labels": {
-            "name": "redis"
-        }
-    },
-    "spec": {
-        "containers": [{
-            "name": "redis",
-            "image": "redis",
-            "imagePullPolicy": "IfNotPresent",
-            "volumeMounts": [{
-                "mountPath": "/mnt/gluster",
-                "name": "glustercsivol"
-            }]
-        }],
-       "volumes": [{
-            "name": "glustercsivol",
-            "persistentVolumeClaim": {
-                "claimName": "gd2-csi-volume"
-            }
-        }]
-    }
-}
+[root@master vagrant]# cat app.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gluster
+  labels:
+    name: gluster
+spec:
+  containers:
+  - name: gluster
+    image: redis
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - mountPath: "/mnt/gluster"
+      name: glustercsivol
+  volumes:
+  - name: glustercsivol
+    persistentVolumeClaim:
+      claimName: glusterfs-csi-pv
 
-[root@localhost cluster]#kubectl create -f deploy/app.json
+[root@localhost cluster]#kubectl create -f app.yaml
 ~~~
 
 Check mount output and validate.
 ~~~
-[root@localhost cluster]# mount |grep gluster
-172.18.0.3:pvc-d1ecc7f4981911e8 on /var/lib/kubelet/pods/e6476013-febd-11e7-bde6-c85b7636c232/volumes/kubernetes.io~csi/kubernetes-dynamic-pvc-ad8014ec-febd-11e7-bf55-c85b7636c232/mount type fuse.glusterfs (rw,relatime,user_id=0,group_id=0,default_permissions,allow_other,max_read=131072)
+[root@localhost cluster]# mount |grep glusterfs
+192.168.121.158:pvc-953d21f5a51311e8 on /var/lib/kubelet/pods/2a563343-a514-11e8-a324-525400a04cb4/volumes/kubernetes.io~csi/pvc-953d21f5a51311e8/mount type fuse.glusterfs (rw,relatime,user_id=0,group_id=0,default_permissions,allow_other,max_read=131072)
+
 [root@localhost cluster]# kubectl delete pod gluster
 pod "gluster" deleted
 [root@localhost cluster]# mount |grep glusterfs

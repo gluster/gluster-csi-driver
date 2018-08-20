@@ -2,11 +2,14 @@ package glusterfs
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
-	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
+
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
@@ -14,17 +17,20 @@ import (
 )
 
 const (
-	glusterDescAnn      = "GlusterFS-CSI"
-	glusterDescAnnValue = "gluster.org/glusterfs-csi"
-	defaultVolumeSize   = 1000 * utils.MB // minimum volume size ie 1 GB
+	glusterDescAnn            = "GlusterFS-CSI"
+	glusterDescAnnValue       = "gluster.org/glusterfs-csi"
+	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
+	defaultReplicaCount       = 3
 )
+
+var errVolumeNotFound = errors.New("volume not found")
 
 type ControllerServer struct {
 	*GfDriver
 }
 
+//CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-
 	var glusterServer string
 	var bkpServers []string
 
@@ -42,10 +48,10 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.InvalidArgument, "Volume capabilities is a required field")
 	}
 
-	// If capacity mentioned, pick that or use default size 20 MB
+	// If capacity mentioned, pick that or use default size 1 GB
 	volSizeBytes := defaultVolumeSize
 	if req.GetCapacityRange() != nil {
-		volSizeBytes = int(req.GetCapacityRange().GetRequiredBytes())
+		volSizeBytes = int64(req.GetCapacityRange().GetRequiredBytes())
 	}
 
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
@@ -61,22 +67,35 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	glog.V(3).Infof("Request fields:[ %v %v %v %v %v %v]", glusterVol, glusterServer, glusterURL, glusterURLPort, glusterUser, glusterUserSecret)
 
-	// Get list of volumes in the TSP
-	volumeListResp, err := cs.client.Volumes("")
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
+	glusterServer, bkpServers, err := cs.checkExistingVolume(volumeName, volSizeMB)
+	if err != nil && err != errVolumeNotFound {
+		return nil, err
 
-	glog.V(2).Infof("Volume list response: %+v", volumeListResp)
+	}
+	if err == nil {
+		resp := &csi.CreateVolumeResponse{
+			Volume: &csi.Volume{
+				Id:            volumeName,
+				CapacityBytes: int64(volSizeBytes),
+				Attributes: map[string]string{
+					"glustervol":        volumeName,
+					"glusterserver":     glusterServer,
+					"glusterbkpservers": strings.Join(bkpServers, ":"),
+				},
+			},
+		}
+		return resp, nil
+	}
 
 	// If volume does not exist, provision volume
 	glog.V(4).Infof("Received request to create/provision volume name:%s with size:%d", volumeName, volSizeMB)
 	volMetaMap := make(map[string]string)
 	volMetaMap[glusterDescAnn] = glusterDescAnnValue
 	volumeReq := api.VolCreateReq{
-		Name:     volumeName,
-		Metadata: volMetaMap,
-		Size:     uint64(volSizeMB),
+		Name:         volumeName,
+		Metadata:     volMetaMap,
+		ReplicaCount: defaultReplicaCount,
+		Size:         uint64(volSizeMB),
 	}
 
 	glog.V(2).Infof("volume request: %+v", volumeReq)
@@ -89,7 +108,9 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	glog.V(3).Infof("volume create response : %+v", volumeCreateResp)
 	err = cs.client.VolumeStart(volumeName, true)
 	if err != nil {
-		//TODO : delete the volume
+		//we dont need to delete the volume if volume start fails
+		//as we are listing the volumes and starting it again
+		//before sending back the response
 		glog.Errorf("failed to start volume:%v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume %s", err.Error()))
 	}
@@ -97,7 +118,6 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	glusterServer, bkpServers, err = cs.getClusterNodes()
 
 	if err != nil {
-		//TODO: delete the volume
 		glog.Errorf("failed to fetch details of cluster nodes: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("error in fecthing peer details %s", err.Error()))
 	}
@@ -118,52 +138,59 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	return resp, nil
 }
 
-func (cs *ControllerServer) checkExistingVolumes(volumeListResp *api.VolumeListResp, volumeName string, volSizeBytes int) (string, []string, error) {
+func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) (string, []string, error) {
+	var (
+		tspServers  []string
+		mountServer string
+		err         error
+	)
 
-	var tspServers []string
-	var mountServer string
-	var err error
+	vol, err := cs.client.VolumeStatus(volumeName)
+	if err != nil {
+		glog.Errorf("failed to fetch volume : %v", err)
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of No route to host error
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return "", nil, errVolumeNotFound
+		}
+		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fecthing volume details %s", err.Error()))
 
-	if volumeListResp == nil {
-		glog.Errorf("Provided volume list response is nil")
-		return "", nil, fmt.Errorf("volume list response is nil")
 	}
 
-	for _, vol := range *volumeListResp {
-		if vol.Name == volumeName {
-			// Do the owner validation
-			if glusterAnnVal, found := vol.Metadata[glusterDescAnn]; found {
-				if glusterAnnVal != glusterDescAnnValue {
-					return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
-						vol.Name, vol.Metadata)
-				}
-			} else {
-				return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
-					vol.Name, vol.Metadata)
-			}
-			vsResp, e := cs.client.VolumeStatus(vol.ID.String())
-			if e != nil {
-				return "", nil, status.Errorf(codes.Internal, "failed to get volume status %s", e.Error())
-			}
-			if int(vsResp.Size.Capacity) != volSizeBytes {
-				return "", nil, status.Error(codes.AlreadyExists, fmt.Sprintf("volume already exits with different size: %d", vsResp.Size.Capacity))
-			}
+	// Do the owner validation
+	if glusterAnnVal, found := vol.Info.Metadata[glusterDescAnn]; found {
+		if glusterAnnVal != glusterDescAnnValue {
+			return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
+				vol.Info.Name, vol.Info.Metadata)
+		}
+	} else {
+		return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
+			vol.Info.Name, vol.Info.Metadata)
+	}
 
-			glog.Info("Requested volume (%s) already exists in the storage pool", vol.Name)
-			mountServer, tspServers, err = cs.getClusterNodes()
+	if int(vol.Size.Capacity) != volSizeMB {
+		return "", nil, status.Error(codes.AlreadyExists, fmt.Sprintf("volume already exits with different size: %d", vol.Size.Capacity))
+	}
 
-			if err != nil {
-				return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fetching backup/peer server details %s", err.Error()))
-			}
-
+	//volume not started, start the volume
+	if !vol.Online {
+		err := cs.client.VolumeStart(vol.Info.Name, true)
+		if err != nil {
+			return "", nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume"))
 		}
 	}
 
+	glog.Info("Requested volume (%s) already exists in the storage pool", volumeName)
+	mountServer, tspServers, err = cs.getClusterNodes()
+
+	if err != nil {
+		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fetching backup/peer server details %s", err.Error()))
+	}
+
 	return mountServer, tspServers, nil
-
 }
-func (cs *ControllerServer) getClusterNodes() (string, []string, error) {
 
+func (cs *ControllerServer) getClusterNodes() (string, []string, error) {
 	peers, err := cs.client.Peers()
 	if err != nil {
 		return "", nil, err
@@ -191,9 +218,8 @@ func (cs *ControllerServer) getClusterNodes() (string, []string, error) {
 	return glusterServer, bkpservers, err
 }
 
-// DeleteVolume deletes the given volume. The function is idempotent.
+// DeleteVolume deletes the given volume.
 func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	// TODO; return success if volume not found
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Volume delete request is nil")
 	}
@@ -206,23 +232,33 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	err := cs.client.VolumeStop(req.VolumeId)
 
 	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of No route to host error
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return &csi.DeleteVolumeResponse{}, nil
+		}
 		return nil, status.Errorf(codes.Internal, "failed to stop volume %s", err.Error())
 	}
 
 	err = cs.client.VolumeDelete(req.VolumeId)
 	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of No route to host error
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return &csi.DeleteVolumeResponse{}, nil
+		}
 		glog.Errorf("Volume delete failed :%v", err)
 		return nil, status.Errorf(codes.Internal, "error deleting volume: %s", err.Error())
 	}
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// ControllerPublishVolume attaches the given volume to the node
+// ControllerPublishVolume return Unimplemented error
 func (cs *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-//ControllerUnpublishVolume deattaches the given volume from the node
+//ControllerUnpublishVolume return Unimplemented error
 func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
@@ -230,7 +266,6 @@ func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 // ValidateVolumeCapabilities checks whether the volume capabilities requested
 // are supported.
 func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "volume capabilities request is nil")
 	}
@@ -245,12 +280,13 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 	var vcaps []*csi.VolumeCapability_AccessMode
 	for _, mode := range []csi.VolumeCapability_AccessMode_Mode{
+		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
 	} {
 		vcaps = append(vcaps, &csi.VolumeCapability_AccessMode{Mode: mode})
 	}
-
-	hasSupport := func(mode csi.VolumeCapability_AccessMode_Mode) bool {
+	capSupport := true
+	IsSupport := func(mode csi.VolumeCapability_AccessMode_Mode) bool {
 		for _, m := range vcaps {
 			if mode == m.Mode {
 				return true
@@ -259,16 +295,13 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		return false
 	}
 
-	resp := &csi.ValidateVolumeCapabilitiesResponse{
-		Supported: false,
-	}
-
 	for _, cap := range req.VolumeCapabilities {
-		if hasSupport(cap.AccessMode.Mode) {
-			resp.Supported = true
-		} else {
-			resp.Supported = false
+		if !IsSupport(cap.AccessMode.Mode) {
+			capSupport = false
 		}
+	}
+	resp := &csi.ValidateVolumeCapabilitiesResponse{
+		Supported: capSupport,
 	}
 	glog.V(1).Infof("glusterfs CSI driver support capabilities: %v", resp)
 	return resp, nil
@@ -276,7 +309,6 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 // ListVolumes returns a list of all requested volumes
 func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-
 	//Fetch all the volumes in the TSP
 	volumes, err := cs.client.Volumes("")
 	if err != nil {
@@ -290,8 +322,8 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		}
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
-				Id:            vol.ID.String(),
-				CapacityBytes: int64(v.Size.Capacity * utils.MB),
+				Id:            vol.Name,
+				CapacityBytes: (int64(v.Size.Capacity)) * utils.MB,
 			},
 		})
 	}
@@ -301,12 +333,10 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}
 
 	return resp, nil
-
 }
 
 // GetCapacity returns the capacity of the storage pool
 func (cs *ControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-
 	return nil, status.Error(codes.Unimplemented, "")
 }
 

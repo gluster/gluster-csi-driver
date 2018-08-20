@@ -36,7 +36,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 	glog.V(2).Infof("Request received %+v", req)
 	targetPath := req.GetTargetPath()
-	notMnt, err := mount.New().IsLikelyNotMountPoint(targetPath)
+	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
 
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -66,7 +66,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	ep := req.GetVolumeAttributes()["glustervol"]
 	source := fmt.Sprintf("%s:%s", gs, ep)
-	mounter := mount.New()
+	mounter := mount.New("")
 
 	err = mounter.Mount(source, targetPath, "glusterfs", mo)
 	if err != nil {
@@ -84,7 +84,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 // NodeUnpublishVolume unmounts the volume from the target path
 func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "request cannot be empty")
 	}
@@ -98,7 +97,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	targetPath := req.GetTargetPath()
-	notMnt, err := mount.New().IsLikelyNotMountPoint(targetPath)
+	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, status.Error(codes.NotFound, "Targetpath not found")
@@ -111,7 +110,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "Volume not mounted")
 	}
 
-	err = util.UnmountPath(req.GetTargetPath(), mount.New())
+	err = util.UnmountPath(req.GetTargetPath(), mount.New(""))
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
