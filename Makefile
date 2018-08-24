@@ -2,7 +2,8 @@
 
 all: check-go check-reqs vendor-install glusterfs-csi-driver
 
-csi-driver:
+glusterfs-csi-driver:
+	@echo Building glusterfs csi driver
 	go build -o build/glusterfs-csi-driver  cmd/glusterfs/main.go
 
 clean:
@@ -15,7 +16,7 @@ check-go:
 
 vendor-update:
 	@echo Updating vendored packages
-	@$(DEPENV) dep ensure -update -vendor-only
+	@$(DEPENV) dep ensure -update
 	@echo
 
 vendor-install:
