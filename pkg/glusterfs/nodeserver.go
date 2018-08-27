@@ -18,6 +18,8 @@ type NodeServer struct {
 	*GfDriver
 }
 
+var glusterMounter = mount.New("")
+
 // NodeStageVolume mounts the volume to a staging path on the node.
 func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
@@ -34,9 +36,18 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "request cannot be empty")
 	}
+
+	if req.VolumeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
+	}
+
 	glog.V(2).Infof("Request received %+v", req)
 	targetPath := req.GetTargetPath()
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
+
+	if targetPath == "" {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path cannot be empty")
+	}
+	notMnt, err := glusterMounter.IsLikelyNotMountPoint(targetPath)
 
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -66,9 +77,8 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	ep := req.GetVolumeAttributes()["glustervol"]
 	source := fmt.Sprintf("%s:%s", gs, ep)
-	mounter := mount.New("")
 
-	err = mounter.Mount(source, targetPath, "glusterfs", mo)
+	err = glusterMounter.Mount(source, targetPath, "glusterfs", mo)
 	if err != nil {
 		if os.IsPermission(err) {
 			return nil, status.Error(codes.PermissionDenied, err.Error())
@@ -97,7 +107,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	targetPath := req.GetTargetPath()
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
+	notMnt, err := glusterMounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, status.Error(codes.NotFound, "Targetpath not found")
@@ -110,7 +120,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "Volume not mounted")
 	}
 
-	err = util.UnmountPath(req.GetTargetPath(), mount.New(""))
+	err = util.UnmountPath(req.GetTargetPath(), glusterMounter)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

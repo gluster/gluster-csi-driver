@@ -153,7 +153,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return "", nil, errVolumeNotFound
 		}
-		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fecthing volume details %s", err.Error()))
+		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fetching volume details %s", err.Error()))
 
 	}
 
@@ -277,9 +277,14 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	if req.VolumeCapabilities == nil {
 		return nil, status.Error(codes.InvalidArgument, "ValidateVolumeCapabilities is nil")
 	}
-
+	_, err := cs.client.VolumeStatus(req.VolumeId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "ValidateVolumeCapabilities() - Invalid Volume ID")
+	}
 	var vcaps []*csi.VolumeCapability_AccessMode
 	for _, mode := range []csi.VolumeCapability_AccessMode_Mode{
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
 	} {
@@ -318,7 +323,7 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	for _, vol := range volumes {
 		v, e := cs.client.VolumeStatus(vol.Name)
 		if e != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get volume status %s", err.Error())
+			return nil, status.Errorf(codes.Internal, "failed to get volume status %s", e.Error())
 		}
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{

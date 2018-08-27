@@ -3,6 +3,10 @@
   name = "github.com/kubernetes-csi/drivers"
 
 [[constraint]]
+  branch = "v0.3.0"
+  name = "github.com/kubernetes-csi/csi-test"
+
+[[constraint]]
   name = "github.com/gluster/glusterd2"
   branch = "master"
 
@@ -15,10 +19,14 @@
   name = "github.com/golang/glog"
 
 [[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
+[[override]]
   revision = "5db89f0ca68677abc5eefce8f2a0a772c98ba52d"
   name = "github.com/docker/distribution"
 
-[[constraint]]
+[[override]]
   name = "github.com/pborman/uuid"
   version = "1.1.0"
 
@@ -30,7 +38,7 @@
   name = "google.golang.org/grpc"
   version = "1.10.0"
 
-[[constraint]]
+[[override]]
   version = "kubernetes-1.10.0-beta.1"
   name = "k8s.io/apimachinery"
 
