@@ -29,7 +29,7 @@ cd "$CSISRC"
 make vendor-install
 
 # verify build
-make csi-driver
+make glusterfs-csi-driver
 
 # run tests
 make test TESTOPTIONS=-v
