@@ -9,8 +9,10 @@ import (
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
+	"github.com/asaskevich/govalidator"
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/gluster/glusterd2/pkg/api"
+	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,6 +23,7 @@ const (
 	glusterDescAnnValue       = "gluster.org/glusterfs-csi"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
+	defaultRestUser           = "glustercli"
 )
 
 var errVolumeNotFound = errors.New("volume not found")
@@ -56,16 +59,29 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
-	// Get Volume name : TODO use the values from request
 	volumeName := req.Name
-	glusterVol := req.GetParameters()["glustervol"]
-	glusterServer = req.GetParameters()["glusterserver"]
-	glusterURL := req.GetParameters()["glusterurl"]
-	glusterURLPort := req.GetParameters()["glusterurlport"]
-	glusterUser := req.GetParameters()["glusteruser"]
-	glusterUserSecret := req.GetParameters()["glusterusersecret"]
 
-	glog.V(3).Infof("Request fields:[ %v %v %v %v %v %v]", glusterVol, glusterServer, glusterURL, glusterURLPort, glusterUser, glusterUserSecret)
+	var gd2Config utils.Config
+	gd2Config.RestURL = req.GetParameters()["gd2url"]
+	gd2Config.RestUser = req.GetParameters()["gd2user"]
+	gd2Config.RestSecret = req.GetParameters()["gd2userpassword"]
+
+	if gd2Config.RestURL != "" {
+		glog.V(3).Infof("Request fields:[ %v %v %v]", gd2Config.RestURL, gd2Config.RestUser, gd2Config.RestSecret)
+		if !govalidator.IsURL(gd2Config.RestURL) {
+			glog.Errorf("gd2url is not in valid format: %v", gd2Config.RestURL)
+		} else {
+			if gd2Config.RestUser == "" {
+				gd2Config.RestUser = defaultRestUser
+			}
+			client, err := restclient.New(gd2Config.RestURL, gd2Config.RestUser, gd2Config.RestSecret, "", false)
+			if err != nil {
+				glog.Errorf("failed to create client : %v", err)
+			} else {
+				cs.client = client
+			}
+		}
+	}
 
 	glusterServer, bkpServers, err := cs.checkExistingVolume(volumeName, volSizeMB)
 	if err != nil && err != errVolumeNotFound {

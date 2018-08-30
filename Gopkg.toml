@@ -11,6 +11,10 @@
   branch = "master"
 
 [[constraint]]
+  name = "github.com/asaskevich/govalidator"
+  version = "v8"
+  
+[[constraint]]
   name = "github.com/container-storage-interface/spec"
   version = "~0.3.0"
 

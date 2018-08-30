@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/asaskevich/govalidator"
+  packages = ["."]
+  revision = "521b25f4b05fd26bec69d9dedeb8f9c9a83939a8"
+  version = "v8"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -400,6 +406,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "976e907708df16c3749c5306d05eaa63153f096b45f102165ec0c7b891882447"
+  inputs-digest = "9f090555d6ff5724176d9243b9ebae542e80fd141941dc8e79f044d3410db043"
   solver-name = "gps-cdcl"
   solver-version = 1

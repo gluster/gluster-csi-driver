@@ -4,4 +4,8 @@ metadata:
   name: glusterfs-csi
   annotations:
     storageclass.beta.kubernetes.io/is-default-class: "true"
+parameters:
+  gd2url: "http://192.168.121.17:24007"
+  gd2user: "glustercli"
+  gd2userpassword: "79e8744fb454cce883dc395ecb9455296895591bd19dfdbcc50dbd2a90012ad4"
 provisioner: org.gluster.glusterfs
