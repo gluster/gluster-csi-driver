@@ -31,7 +31,7 @@ func New(config *utils.Config) *GfDriver {
 		return nil
 	}
 
-	glog.V(1).Infof("GlusterFS CSI Driver initalized")
+	glog.V(1).Infof("GlusterFS CSI Driver initialized")
 
 	return gfd
 }
