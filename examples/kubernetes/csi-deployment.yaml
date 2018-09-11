@@ -1,0 +1,258 @@
+# Copyright 2018 The Gluster CSI Authors.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-attacher-glusterfsplugin
+  labels:
+    app: csi-attacher-glusterfsplugin
+spec:
+  selector:
+    app: csi-attacher-glusterfsplugin
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-attacher-glusterfsplugin
+spec:
+  serviceName: "csi-attacher"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-attacher-glusterfsplugin
+    spec:
+      serviceAccount: glusterfs-csi
+      containers:
+        - name: csi-attacher
+          image: quay.io/k8scsi/csi-attacher:v0.3.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+
+        - name: glusterfs
+          image: docker.io/gluster/glusterfs-csi-driver
+          args :
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--restsecret=$(REST_SECRET)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://192.168.121.182:24007
+            - name: REST_SECRET
+              value: b03045b7988258557ecd3e136cd37ba3f928ea0831b3b1b7ed8ae238d36d9071
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /plugin
+      volumes:
+        - name: socket-dir
+          emptyDir:
+          
+---
+kind: DaemonSet
+apiVersion: apps/v1beta2
+metadata:
+  name: csi-nodeplugin-glusterfsplugin
+spec:
+  selector:
+    matchLabels:
+      app: csi-nodeplugin-glusterfsplugin
+  template:
+    metadata:
+      labels:
+        app: csi-nodeplugin-glusterfsplugin
+    spec:
+      serviceAccount: glusterfs-csi
+      hostNetwork: true
+      containers:
+        - name: driver-registrar
+          image: quay.io/k8scsi/driver-registrar:v0.3.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /plugin/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+        - name: glusterfs
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: docker.io/gluster/glusterfs-csi-driver
+          args :
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--restsecret=$(REST_SECRET)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://192.168.121.182:24007
+            - name: REST_SECRET
+              value: b03045b7988258557ecd3e136cd37ba3f928ea0831b3b1b7ed8ae238d36d9071
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/org.gluster.glusterfs
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-provisioner-glusterfsplugin
+  labels:
+    app: csi-provisioner-glusterfsplugin
+spec:
+  selector:
+    app: csi-provisioner-glusterfsplugin
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-provisioner-glusterfsplugin
+spec:
+  serviceName: "csi-provisioner-glusterfsplugin"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-provisioner-glusterfsplugin
+    spec:
+      serviceAccount: glusterfs-csi
+      containers:
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.3.0
+          args:
+            - "--provisioner=org.gluster.glusterfs"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: glusterfs
+          image: docker.io/gluster/glusterfs-csi-driver
+          args :
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--restsecret=$(REST_SECRET)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://192.168.121.182:24007
+            - name: REST_SECRET
+              value: b03045b7988258557ecd3e136cd37ba3f928ea0831b3b1b7ed8ae238d36d9071
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /plugin
+      volumes:
+        - name: socket-dir
+          emptyDir:
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: glusterfs-csi
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: glusterfs-csi
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: glusterfs-csi-role
+subjects:
+  - kind: ServiceAccount
+    name: glusterfs-csi
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: glusterfs-csi-runner
+  apiGroup: rbac.authorization.k8s.io
