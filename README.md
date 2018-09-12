@@ -25,7 +25,7 @@ distribution. Once you clone the repository, to build the image, run the followi
 ### Deploy a GD2 gluster cluster
 ### Deploy CSI driver
 ~~~
-#kubectl create -f csi-deployment.yaml
+[root@localhost cluster]#kubectl create -f csi-deployment.yaml
 service/csi-attacher-glusterfsplugin created
 statefulset.apps/csi-attacher-glusterfsplugin created
 daemonset.apps/csi-nodeplugin-glusterfsplugin created
