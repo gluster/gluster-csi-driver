@@ -13,16 +13,29 @@ This repo contains CSI driver for Gluster. The Container Storage Interface (CSI)
 This repository consists of Dockerfile for GlusterFS CSI dirver to build on  CentOS
 distribution. Once you clone the repository, to build the image, run the following command:
 
+1) Get inside the repository directory
+
 ```
-#cd gluster-csi-driver
-#make
-#docker build -t glusterfs-csi-driver -f pkg/glusterfs/Dockerfile .
+[root@localhost]#cd gluster-csi-driver
+```
+2) Compile and create a binary
+
+```
+[root@localhost]#make
+```
+
+3) Build a docker image based on the binary compiled above
+
+```
+[root@localhost]#docker build -t glusterfs-csi-driver -f pkg/glusterfs/Dockerfile .
 ```
 
 ## Testing GlusterFS CSI driver
 
 ### Deploy kubernetes Cluster
+
 ### Deploy a GD2 gluster cluster
+
 ### Deploy CSI driver
 ~~~
 [root@localhost cluster]#kubectl create -f csi-deployment.yaml
