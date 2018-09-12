@@ -14,6 +14,8 @@ This repository consists of Dockerfile for GlusterFS CSI dirver to build on  Cen
 distribution. Once you clone the repository, to build the image, run the following command:
 
 ```
+#cd gluster-csi-driver
+#make
 #docker build -t glusterfs-csi-driver -f pkg/glusterfs/Dockerfile .
 ```
 
@@ -23,12 +25,15 @@ distribution. Once you clone the repository, to build the image, run the followi
 ### Deploy a GD2 gluster cluster
 ### Deploy CSI driver
 ~~~
-#kubectl create -f csi-attacher-glusterfsplugin.yaml
-#kubectl create -f csi-attacher-rbac.yaml
-#kubectl create -f csi-nodeplugin-glusterfsplugin.yaml
-#kubectl create -f csi-nodeplugin-rbac.yaml
-#kubectl create -f csi-provisioner-glusterfsplugin.yaml
-#kubectl create -f csi-provisioner-rbac.yaml
+#kubectl create -f csi-deployment.yaml
+service/csi-attacher-glusterfsplugin created
+statefulset.apps/csi-attacher-glusterfsplugin created
+daemonset.apps/csi-nodeplugin-glusterfsplugin created
+service/csi-provisioner-glusterfsplugin created
+statefulset.apps/csi-provisioner-glusterfsplugin created
+serviceaccount/glusterfs-csi created
+clusterrole.rbac.authorization.k8s.io/glusterfs-csi created
+clusterrolebinding.rbac.authorization.k8s.io/glusterfs-csi-role created
 ~~~
 
 ### Create a storage class
