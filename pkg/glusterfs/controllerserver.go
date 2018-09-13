@@ -42,7 +42,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Name is a required field")
 	}
-	glog.V(1).Infof("creating volume with name ", req.Name)
+	glog.V(1).Infof("creating volume with name : %s", req.Name)
 
 	if req.VolumeCapabilities == nil || len(req.VolumeCapabilities) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume capabilities is a required field")
@@ -99,6 +99,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	glog.V(2).Infof("volume request: %+v", volumeReq)
+
 	volumeCreateResp, err := cs.client.VolumeCreate(volumeReq)
 	if err != nil {
 		glog.Errorf("failed to create volume : %v", err)
@@ -149,7 +150,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 	if err != nil {
 		glog.Errorf("failed to fetch volume : %v", err)
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
+		//errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return "", nil, errVolumeNotFound
 		}
@@ -172,15 +173,15 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 		return "", nil, status.Error(codes.AlreadyExists, fmt.Sprintf("volume already exits with different size: %d", vol.Size.Capacity))
 	}
 
-	//volume not started, start the volume
+	//volume has not started, start the volume
 	if !vol.Online {
 		err := cs.client.VolumeStart(vol.Info.Name, true)
 		if err != nil {
-			return "", nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume"))
+			return "", nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume %s, err: %v", vol.Info.Name, err))
 		}
 	}
 
-	glog.Info("Requested volume (%s) already exists in the storage pool", volumeName)
+	glog.Info("Requested volume %s already exists in the gluster cluster", volumeName)
 	mountServer, tspServers, err = cs.getClusterNodes()
 
 	if err != nil {
@@ -229,17 +230,19 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	}
 	glog.V(2).Infof("Deleting volume with ID: %v", req.VolumeId)
 
+	// Stop volume
 	err := cs.client.VolumeStop(req.VolumeId)
 
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
+		//errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
 		return nil, status.Errorf(codes.Internal, "failed to stop volume %s", err.Error())
 	}
 
+	// Delete volume
 	err = cs.client.VolumeDelete(req.VolumeId)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
@@ -247,7 +250,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		glog.Errorf("Volume delete failed :%v", err)
+		glog.Errorf("Deleting Volume %s failed: %v", req.VolumeId, err)
 		return nil, status.Errorf(codes.Internal, "error deleting volume: %s", err.Error())
 	}
 	return &csi.DeleteVolumeResponse{}, nil
@@ -308,7 +311,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	resp := &csi.ValidateVolumeCapabilitiesResponse{
 		Supported: capSupport,
 	}
-	glog.V(1).Infof("glusterfs CSI driver support capabilities: %v", resp)
+	glog.V(1).Infof("glusterfs CSI driver supported capabilities: %v", resp)
 	return resp, nil
 }
 
