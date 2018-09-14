@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -46,14 +44,13 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// If capacity mentioned, pick that or use default size 1 GB
 	volSizeBytes := defaultVolumeSize
 	if capRange := req.GetCapacityRange(); capRange != nil {
-		volSizeBytes = int64(capRange.GetRequiredBytes())
+		volSizeBytes = capRange.GetRequiredBytes()
 	}
-
-	volSizeMB := uint64(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
 	volumeName := req.Name
 	glusterVol := req.GetParameters()["glustervol"]
 	glusterServer := req.GetParameters()["glusterserver"]
+	glusterServerKind := req.GetParameters()["glusterserverkind"]
 	glusterURL := req.GetParameters()["glusterurl"]
 	glusterUser := req.GetParameters()["glusteruser"]
 	glusterUserSecret := req.GetParameters()["glusterusersecret"]
@@ -61,6 +58,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	glog.V(3).Infof("Request fields:[ %v %v %v %v %v]", glusterVol, glusterServer, glusterURL, glusterUser, glusterUserSecret)
 
 	gc := &GlusterClient{
+		kind:     GlusterServerKind(glusterServerKind),
 		url:      glusterURL,
 		username: glusterUser,
 		password: glusterUserSecret,
@@ -71,57 +69,40 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
-	err = gc.CheckExistingVolume(volumeName, volSizeMB)
+	err = gc.CheckExistingVolume(volumeName, volSizeBytes)
 	if err != nil && err != errVolumeNotFound {
 		glog.Errorf("Error with pre-existing volume: %v", err)
 		return nil, status.Errorf(codes.Internal, "Error with pre-existing volume: %v", err)
 	} else if err == errVolumeNotFound {
 		// If volume does not exist, provision volume
-		glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeMB)
-		volMetaMap := make(map[string]string)
-		volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
-		volumeReq := api.VolCreateReq{
-			Name:         volumeName,
-			Metadata:     volMetaMap,
-			ReplicaCount: defaultReplicaCount,
-			Size:         volSizeMB,
-		}
-
-		glog.V(2).Infof("volume create request: %+v", volumeReq)
-		volumeCreateResp, err := gc.client.VolumeCreate(volumeReq)
+		glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeBytes)
+		err = gc.CreateVolume(volumeName, volSizeBytes)
 		if err != nil {
 			glog.Errorf("failed to create volume: %v", err)
 			return nil, status.Errorf(codes.Internal, "failed to create volume: %v", err)
 		}
-
-		glog.V(3).Infof("volume create response : %+v", volumeCreateResp)
-		err = cs.client.VolumeStart(volumeName, true)
-		if err != nil {
-			//we dont need to delete the volume if volume start fails
-			//as we are listing the volumes and starting it again
-			//before sending back the response
-			glog.Errorf("failed to start volume: %v", err)
-			return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
-		}
 	}
 
-	glusterServer, bkpServers, err := gc.GetClusterNodes()
+	glusterServers, err := gc.GetClusterNodes(volumeName)
 	if err != nil {
-		glog.Errorf("Failed to get cluster nodes for %s / %s: %v", gc.url, gc.username, err)
-		return nil, status.Errorf(codes.Internal, "Failed to get cluster nodes for %s / %s: %v", gc.url, gc.username, err)
+		glog.Errorf("Failed to get cluster nodes for %s: %v", volumeName, err)
+		return nil, status.Errorf(codes.Internal, "Failed to get cluster nodes for %s: %v", volumeName, err)
 	}
+	glusterServer = glusterServers[0]
+	bkpservers = glusterServers[1:]
 
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			Id:            volumeName,
 			CapacityBytes: volSizeBytes,
 			Attributes: map[string]string{
-				"glustervol":        volumeName,
-				"glusterserver":     glusterServer,
-				"glusterbkpservers": strings.Join(bkpServers, ":"),
-				"glusterurl":        glusterURL,
-				"glusteruser":       glusterUser,
-				"glusterusersecret": glusterUserSecret,
+				"glustervol":           volumeName,
+				"glusterserver":        glusterServer,
+				"glusterbkpservers":    strings.Join(bkpServers, ":"),
+				"glusterserververkind": string(gc.kind),
+				"glusterurl":           glusterURL,
+				"glusteruser":          glusterUser,
+				"glusterusersecret":    glusterUserSecret,
 			},
 		},
 	}
@@ -163,24 +144,8 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		glog.Error(err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("error deleting volume %s: %s", volumeId, err.Error()))
 	} else if err == nil {
-		err := gc.client.VolumeStop(volumeId)
-		if err != nil {
-			errResp := gc.client.LastErrorResponse()
-			//errResp will be nil in case of 'No route to host' error
-			if errResp != nil && errResp.StatusCode == http.StatusNotFound {
-				return &csi.DeleteVolumeResponse{}, nil
-			}
-			glog.Errorf("failed to stop volume %s: %v", volumeId, err)
-			return nil, status.Errorf(codes.Internal, "failed to stop volume %s: %v", volumeId, err)
-		}
-
-		err = gc.client.VolumeDelete(volumeId)
+		err = gc.DeleteVolume(volumeId)
 		if err != nil && err != errVolumeNotFound {
-			errResp := gc.client.LastErrorResponse()
-			//errResp will be nil in case of 'No route to host' error
-			if errResp != nil && errResp.StatusCode == http.StatusNotFound {
-				return &csi.DeleteVolumeResponse{}, nil
-			}
 			glog.Errorf("error deleting volume %s: %v", volumeId, err)
 			return nil, status.Errorf(codes.Internal, "error deleting volume %s: %v", volumeId, err)
 		}
@@ -266,39 +231,16 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	end := int32(start) + req.MaxEntries - 1
 
 	for server, users := range glusterClientCache {
-		for user, gc := range users {
-			client := gc.client
-
-			vols, err := client.Volumes("")
+		for user, searchClient := range users {
+			gc := searchClient
+			vols, err := gc.ListVolumes()
 			if err != nil {
-				return nil, err
-			}
-
-			glusterServer, bkpServers, err := gc.GetClusterNodes()
-			if err != nil {
-				return nil, fmt.Errorf("Failed to get cluster nodes for %s / %s: %v", server, user, err)
+				glog.V(1).Infof("Failed to list volumes for %s / %s: %v", server, user, err)
+				continue
 			}
 
 			for _, vol := range vols {
-				v, err := client.VolumeStatus(vol.Name)
-				if err != nil {
-					glog.V(1).Infof("Error getting volume %s status from %s / %s: %s", vol.Name, server, user, err)
-					continue
-				}
-				entries = append(entries, &csi.ListVolumesResponse_Entry{
-					Volume: &csi.Volume{
-						Id:            vol.Name,
-						CapacityBytes: (int64(v.Size.Capacity)) * utils.MB,
-						Attributes: map[string]string{
-							"glustervol":        vol.Name,
-							"glusterserver":     glusterServer,
-							"glusterbkpservers": strings.Join(bkpServers, ":"),
-							"glusterurl":        gc.url,
-							"glusteruser":       gc.username,
-							"glusterusersecret": gc.password,
-						},
-					},
-				})
+				entries = append(entries, &csi.ListVolumesResponse_Entry{Volume: vol})
 			}
 		}
 	}

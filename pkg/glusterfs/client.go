@@ -7,6 +7,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
+
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
 	corev1 "k8s.io/api/core/v1"
@@ -15,18 +19,28 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+type GlusterServerKind string
+
 const (
 	GD2DefaultInsecure = false
+
+	ServerKindUnknown GlusterServerKind = ""
+	ServerKindGD2     GlusterServerKind = "glusterd2"
 )
 
-type GlusterClient struct {
-	url          string
-	username     string
-	password     string
-	client       *restclient.Client
+type GD2Client struct {
+	gd2Client    *restclient.Client
 	cacert       string
 	insecure     string
 	insecureBool bool
+}
+
+type GlusterClient struct {
+	kind     GlusterServerKind
+	url      string
+	username string
+	password string
+	*GD2Client
 }
 
 // GlusterClients is a map of maps of GlusterClient structs. The first map is
@@ -55,7 +69,16 @@ func SetStringIfEmpty(old, new string) string {
 	return old
 }
 
-func (gc *GlusterClient) setInsecure(new string) {
+func (gc *GlusterClient) gd2CheckRespErr(orig error) error {
+	errResp := gc.gd2Client.LastErrorResponse()
+	//errResp will be nil in case of No route to host error
+	if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+		return errVolumeNotFound
+	}
+	return orig
+}
+
+func (gc *GlusterClient) gd2SetInsecure(new string) {
 	gc.insecure = SetStringIfEmpty(gc.insecure, new)
 	insecureBool, err := strconv.ParseBool(gc.insecure)
 	if err != nil {
@@ -66,68 +89,174 @@ func (gc *GlusterClient) setInsecure(new string) {
 	gc.insecureBool = insecureBool
 }
 
-func (gc *GlusterClient) GetClusterNodes() (string, []string, error) {
-	glusterServer := ""
-	bkpservers := []string{}
-
-	peers, err := gc.client.Peers()
-	if err != nil {
-		return "", nil, err
+func (gc *GlusterClient) detectServerKind() error {
+	serverTestUrls := map[GlusterServerKind]string{
+		ServerKindGD2: gc.url + "/ping",
 	}
 
-	for i, p := range peers {
-		if i == 0 {
-			for _, a := range p.PeerAddresses {
-				ip := strings.Split(a, ":")
-				glusterServer = ip[0]
+	for serverKind, testUrl := range serverTestUrls {
+		if resp, err := http.Get(testUrl); err == nil {
+			if resp.StatusCode == 200 {
+				gc.kind = serverKind
 			}
-
-			continue
+			resp.Body.Close()
+		} else if err != nil {
+			glog.V(1).Infof("Error detecting %s server at %s: %v", serverKind, testUrl, err)
 		}
-		for _, a := range p.PeerAddresses {
-			ip := strings.Split(a, ":")
-			bkpservers = append(bkpservers, ip[0])
-		}
-
 	}
 
-	glog.V(2).Infof("Gluster server and Backup servers [%+v,%+v]", glusterServer, bkpservers)
-
-	return glusterServer, bkpservers, nil
+	if gc.kind == ServerKindUnknown {
+		return fmt.Errorf("Failed to detect server %s kind", gc.url)
+	}
+	glog.V(1).Infof("Server %s kind detected: %s", gc.url, gc.kind)
+	return nil
 }
 
-func (gc *GlusterClient) CheckExistingVolume(volumeId string, volSizeMB uint64) error {
-	vol, err := gc.client.VolumeStatus(volumeId)
-	if err != nil {
-		errResp := gc.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
-		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
-			return errVolumeNotFound
-		}
-		return err
-	}
+func (gc *GlusterClient) GetClusterNodes(volumeId string) ([]string, error) {
+	glusterServers := []string{}
 
-	// Do the owner validation
-	if glusterAnnVal, found := vol.Info.Metadata[glusterDescAnn]; !found || glusterAnnVal != glusterDescAnnValue {
-		return fmt.Errorf("volume %s is not owned by %s", vol.Info.Name, glusterDescAnnValue)
-	}
-
-	// Check requested capacity is the same as existing capacity
-	if volSizeMB > 0 && vol.Size.Capacity != volSizeMB {
-		return fmt.Errorf("volume %s already exists with different size: %d", vol.Info.Name, vol.Size.Capacity)
-	}
-
-	// If volume not started, start the volume
-	if !vol.Online {
-		err := gc.client.VolumeStart(vol.Info.Name, true)
+	switch kind := gc.kind; kind {
+	case ServerKindGD2:
+		client := gc.gd2Client
+		peers, err := client.Peers()
 		if err != nil {
-			return fmt.Errorf("failed to start volume %s", vol.Info.Name)
+			return nil, err
 		}
+
+		for _, p := range peers {
+			for _, a := range p.PeerAddresses {
+				ip := strings.Split(a, ":")
+				glusterServers = append(glusterServers, ip[0])
+			}
+		}
+	default:
+		return nil, fmt.Errorf("Invalid server kind: %s", gc.kind)
 	}
 
-	glog.Info("Found volume %s in the storage pool", volumeId)
+	if len(glusterServers) == 0 {
+		return nil, fmt.Errorf("No hosts found for %s / %s", gc.url, gc.username)
+	}
+	glog.V(2).Infof("Gluster servers: %+v", glusterServers)
+
+	return glusterServers, nil
+}
+
+func (gc *GlusterClient) CheckExistingVolume(volumeId string, volSizeBytes int64) error {
+	switch kind := gc.kind; kind {
+	case ServerKindGD2:
+		client := gc.gd2Client
+		vol, err := client.VolumeStatus(volumeId)
+		if err != nil {
+			return gc.gd2CheckRespErr(err)
+		}
+
+		// Do the owner validation
+		if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; !found || glusterAnnVal != glusterfsCSIDriverName {
+			return fmt.Errorf("volume %s is not owned by %s", vol.Info.Name, glusterfsCSIDriverName)
+		}
+
+		// Check requested capacity is the same as existing capacity
+		if volSizeBytes > 0 && vol.Size.Capacity != uint64(utils.RoundUpToMiB(volSizeBytes)) {
+			return fmt.Errorf("volume %s already exists with different size: %d MiB", vol.Info.Name, vol.Size.Capacity)
+		}
+
+		// If volume not started, start the volume
+		if !vol.Online {
+			err := client.VolumeStart(vol.Info.Name, true)
+			if err != nil {
+				return fmt.Errorf("failed to start volume %s", vol.Info.Name)
+			}
+		}
+	default:
+		return fmt.Errorf("Invalid server kind: %s", kind)
+	}
+
+	glog.V(1).Infof("Found volume %s in the storage pool", volumeId)
+	return nil
+}
+
+func (gc *GlusterClient) CreateVolume(volumeName string, volSizeBytes int64, params map[string]string) error {
+	switch kind := gc.kind; kind {
+	case ServerKindGD2:
+		client := gc.gd2Client
+		volMetaMap := make(map[string]string)
+		volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
+		volumeReq := api.VolCreateReq{
+			Name:         volumeName,
+			Metadata:     volMetaMap,
+			ReplicaCount: defaultReplicaCount,
+			Size:         uint64(utils.RoundUpToMiB(volSizeBytes)),
+		}
+
+		glog.V(2).Infof("volume create request: %+v", volumeReq)
+		volumeCreateResp, err := client.VolumeCreate(volumeReq)
+		if err != nil {
+			return fmt.Errorf("failed to create volume %s: %v", volumeName, err)
+		}
+
+		glog.V(3).Infof("volume create response: %+v", volumeCreateResp)
+		err = client.VolumeStart(volumeName, true)
+		if err != nil {
+			//we dont need to delete the volume if volume start fails
+			//as we are listing the volumes and starting it again
+			//before sending back the response
+			return fmt.Errorf("failed to start volume %s: %v", volumeName, err)
+		}
+	default:
+		return fmt.Errorf("Invalid server kind: %s", kind)
+	}
 
 	return nil
+}
+
+func (gc *GlusterClient) DeleteVolume(volumeId string) error {
+	switch kind := gc.kind; kind {
+	case ServerKindGD2:
+		client := gc.gd2Client
+		err := client.VolumeStop(volumeId)
+		if err != nil {
+			return gc.gd2CheckRespErr(err)
+		}
+
+		err = client.VolumeDelete(volumeId)
+		if err != nil {
+			return gc.gd2CheckRespErr(err)
+		}
+	default:
+		return fmt.Errorf("Invalid server kind: %s", gc.kind)
+	}
+
+	return nil
+}
+
+func (gc GlusterClient) ListVolumes() ([]*csi.Volume, error) {
+	volumes := []*csi.Volume{}
+
+	switch kind := gc.kind; kind {
+	case ServerKindGD2:
+		client := gc.gd2Client
+
+		vols, err := client.Volumes("")
+		if err != nil {
+			return nil, err
+		}
+
+		for _, vol := range vols {
+			v, err := client.VolumeStatus(vol.Name)
+			if err != nil {
+				glog.V(1).Infof("Error getting volume %s status: %s", vol.Name, err)
+				continue
+			}
+			volumes = append(volumes, &csi.Volume{
+				Id:            vol.Name,
+				CapacityBytes: (int64(v.Size.Capacity)) * utils.MB,
+			})
+		}
+	default:
+		return nil, fmt.Errorf("Invalid server kind: %s", gc.kind)
+	}
+
+	return volumes, nil
 }
 
 func (gcc GlusterClients) Get(server, user string) (*GlusterClient, error) {
@@ -166,7 +295,7 @@ func (gcc GlusterClients) FindVolumeClient(volumeId string) (*GlusterClient, err
 	}
 	pvList := []corev1.PersistentVolume{}
 	for i, pv := range pvs.Items {
-		if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == driverName {
+		if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == glusterfsCSIDriverName {
 			pvList = append(pvList, pv)
 
 			if pv.Spec.CSI.VolumeHandle == volumeId {
@@ -198,6 +327,7 @@ func (gcc GlusterClients) FindVolumeClient(volumeId string) (*GlusterClient, err
 				glog.V(1).Infof("GlusterClient for %s / %s not found, initializing", url, user)
 
 				searchClient := &GlusterClient{
+					kind:     GlusterServerKind(attrs["glusterserverkind"]),
 					url:      url,
 					username: user,
 					password: attrs["glusterusersecret"],
@@ -228,7 +358,7 @@ func (gcc GlusterClients) FindVolumeClient(volumeId string) (*GlusterClient, err
 		}
 	}
 
-	if gc.client == nil {
+	if gc == nil {
 		return nil, errVolumeNotFound
 	}
 	return gc, nil
@@ -247,18 +377,41 @@ func (gcc GlusterClients) Init(client *GlusterClient) error {
 	}
 	usrEnt, ok := srvEnt[client.username]
 	if ok {
+		client.kind = GlusterServerKind(SetStringIfEmpty(string(client.kind), string(usrEnt.kind)))
 		client.password = SetStringIfEmpty(client.password, usrEnt.password)
-		client.client = SetPointerIfEmpty(client.client, usrEnt.client).(*restclient.Client)
-		client.cacert = SetStringIfEmpty(client.cacert, usrEnt.cacert)
-		client.setInsecure(usrEnt.insecure)
+		switch kind := client.kind; kind {
+		case ServerKindGD2:
+			if client.GD2Client == nil {
+				client.GD2Client = &GD2Client{insecureBool: GD2DefaultInsecure}
+			}
+			client.GD2Client = SetPointerIfEmpty(client.GD2Client, usrEnt.GD2Client).(*GD2Client)
+			client.cacert = SetStringIfEmpty(client.cacert, usrEnt.cacert)
+			client.gd2SetInsecure(usrEnt.insecure)
+		default:
+			err = fmt.Errorf("invalid server kind: %s", client.kind)
+		}
 	} else {
-		glog.V(1).Infof("REST client %s / %s not found in cache, initializing", client.url, client.username)
+		glog.V(1).Infof("REST client %s/%s not found in cache, initializing", client.url, client.username)
 
-		gd2, err := restclient.New(client.url, client.username, client.password, client.cacert, client.insecureBool)
-		if err == nil {
-			client.client = gd2
-		} else {
-			return fmt.Errorf("Failed to create REST client %s / %s: %s", err)
+		if client.kind == ServerKindUnknown {
+			err = client.detectServerKind()
+			if err != nil {
+				return err
+			}
+		}
+
+		switch kind := client.kind; kind {
+		case ServerKindGD2:
+			if client.GD2Client == nil {
+				client.GD2Client = &GD2Client{insecureBool: GD2DefaultInsecure}
+			}
+			gd2, err := restclient.New(client.url, client.username, client.password, client.cacert, client.insecureBool)
+			if err != nil {
+				return fmt.Errorf("failed to create %s REST client: %s", client.kind, err)
+			}
+			client.gd2Client = gd2
+		default:
+			return fmt.Errorf("invalid server kind: %s", client.kind)
 		}
 	}
 
