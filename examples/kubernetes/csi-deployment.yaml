@@ -232,9 +232,15 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "update"]
+    verbs: ["get", "list", "watch", "update","create","delete"]
   - apiGroups: [""]
     resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["volumeattachments"]
@@ -254,5 +260,5 @@ subjects:
     namespace: default
 roleRef:
   kind: ClusterRole
-  name: glusterfs-csi-runner
+  name: glusterfs-csi
   apiGroup: rbac.authorization.k8s.io
