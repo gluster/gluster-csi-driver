@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"os"
 
-	gfd "github.com/gluster/gluster-csi-driver/pkg/glusterfs"
+	gfs "github.com/gluster/gluster-csi-driver/pkg/glusterfs"
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
 	"github.com/spf13/cobra"
+)
+
+const (
+	csiDriverName = "org.gluster.glusterfs"
+	csiDrvVersion = "0.0.7"
 )
 
 func init() {
@@ -18,12 +23,16 @@ func init() {
 func main() {
 	flag.CommandLine.Parse([]string{})
 	var config = utils.NewConfig()
+	var csiConfig utils.CsiDrvParam
+
+	csiConfig.CsiDrvName = csiDriverName
+	csiConfig.CsiDrvVersion = csiDrvVersion
 
 	cmd := &cobra.Command{
 		Use:   "glusterfs-csi-driver",
 		Short: "GlusterFS CSI driver",
 		Run: func(cmd *cobra.Command, args []string) {
-			handle(config)
+			handle(config, &csiConfig)
 		},
 	}
 
@@ -46,11 +55,11 @@ func main() {
 	}
 }
 
-func handle(config *utils.Config) {
+func handle(config *utils.Config, csiConfig *utils.CsiDrvParam) {
 	if config.Endpoint == "" {
 		config.Endpoint = os.Getenv("CSI_ENDPOINT")
 	}
-	d := gfd.New(config)
+	d := gfs.New(config, csiConfig)
 	if d == nil {
 		fmt.Println("Failed to initialize driver")
 		os.Exit(1)
