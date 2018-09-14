@@ -3,7 +3,7 @@
 set -e
 
 # Set driver name
-DRIVER="${DRIVER:-glusterfs-csi-driver}"
+DRIVER="${DRIVER:-glusterfs}"
 
 # Set which docker repo to tag
 REPO="${REPO:-gluster/}"
@@ -40,15 +40,16 @@ $RUNTIME_CMD version
 
 #-- Build container
 $RUNTIME_CMD $build \
-        -t "${REPO}${DRIVER}" \
+        -t "${REPO}${DRIVER}-csi-driver" \
+        --build-arg DRIVER="$DRIVER" \
         "${build_args[@]}" \
-        -f pkg/glusterfs/Dockerfile \
+        -f extras/Dockerfile \
         . \
 || exit 1
 
 # If running tests, extract profile data
 if [ "$RUN_TESTS" -ne 0 ]; then
         rm -f profile.cov
-        $RUNTIME_CMD run --entrypoint cat "${REPO}${DRIVER}" \
+        $RUNTIME_CMD run --entrypoint cat "${REPO}${DRIVER}-csi-driver" \
                 /profile.cov > profile.cov
 fi

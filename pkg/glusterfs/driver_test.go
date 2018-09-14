@@ -10,13 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
+	"github.com/gluster/gluster-csi-driver/pkg/command"
 
 	"github.com/gluster/glusterd2/pkg/api"
-	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/kubernetes-csi/csi-test/pkg/sanity"
 	"github.com/pborman/uuid"
 	"k8s.io/kubernetes/pkg/util/mount"
+)
+
+const (
+	CSIDriverName = "glusterfs.gluster.org"
 )
 
 type volume struct {
@@ -27,7 +30,6 @@ type volume struct {
 var volumeCache = make(map[string]volume)
 
 func TestDriverSuite(t *testing.T) {
-	glusterMounter = &mount.FakeMounter{}
 	socket := "/tmp/csi.sock"
 	endpoint := "unix://" + socket
 
@@ -52,25 +54,22 @@ func TestDriverSuite(t *testing.T) {
 			handlePOSTRequest(w, r, t)
 		}
 	}))
-
 	defer ts.Close()
 
 	url, err := url.Parse(ts.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doClient, err := restclient.New(url.String(), "", "", "", false)
-	if err != nil {
-		t.Fatal(err)
+
+	config := &command.Config{
+		Name:     CSIDriverName,
+		Endpoint: endpoint,
+		NodeID:   "testing",
+		RestURL:  url.String(),
 	}
 
-	d := GfDriver{
+	d := New(config, &mount.FakeMounter{})
 
-		client: doClient,
-	}
-	d.Config = new(utils.Config)
-	d.Endpoint = endpoint
-	d.NodeID = "testing"
 	go d.Run()
 
 	mntStageDir := "/tmp/mntStageDir"
@@ -125,7 +124,7 @@ func handleGETRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 		resp[0] = api.VolumeGetResp{
 			ID:       id,
 			Name:     "test1",
-			Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
+			Metadata: map[string]string{volumeOwnerAnn: CSIDriverName},
 			State:    api.VolStarted,
 			Capacity: 1000,
 		}
@@ -139,18 +138,33 @@ func handleGETRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 		return
 	}
 
+	if strings.HasSuffix(r.URL.String(), "/version") {
+		resp := api.VersionResp{
+			GlusterdVersion: "4.0.0",
+			APIVersion:      1,
+		}
+		writeResp(w, http.StatusOK, resp, t)
+		return
+	}
+
+	if strings.HasSuffix(r.URL.String(), "/ping") {
+		writeResp(w, http.StatusOK, nil, t)
+		return
+	}
+
 	vol := strings.Split(strings.Trim(r.URL.String(), "/"), "/")
 	if checkVolume(vol[2]) {
 		resp := api.VolumeGetResp{
 			ID:       id,
 			Name:     vol[2],
-			Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
+			Metadata: map[string]string{volumeOwnerAnn: CSIDriverName},
 			State:    api.VolStarted,
 			Capacity: volumeCache[vol[2]].Size,
 		}
 		writeResp(w, http.StatusOK, resp, t)
 		return
 	}
+
 	resp := api.ErrorResp{}
 	resp.Errors = append(resp.Errors, api.HTTPError{
 		Code: 1,
@@ -233,15 +247,13 @@ func getSnapShots(w http.ResponseWriter, r *http.Request, t *testing.T) {
 	writeResp(w, http.StatusOK, res, t)
 
 }
+
 func handlePOSTRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
-	if strings.HasSuffix(r.URL.String(), "start") || strings.HasSuffix(r.URL.String(), "stop") {
+	if strings.HasSuffix(r.URL.String(), "start") || strings.HasSuffix(r.URL.String(), "stop") || strings.HasSuffix(r.URL.String(), "activate") || strings.HasSuffix(r.URL.String(), "resture") {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if strings.HasSuffix(r.URL.String(), "activate") || strings.HasSuffix(r.URL.String(), "deactivate") {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+
 	if strings.HasPrefix(r.URL.String(), "/v1/snapshots") {
 		var resp api.SnapCreateResp
 
@@ -259,7 +271,8 @@ func handlePOSTRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 		volumeCache[req.VolName] = volResp
 		writeResp(w, http.StatusCreated, resp, t)
 	}
-	if strings.HasPrefix(r.URL.String(), "/v1/volumes") {
+
+	if strings.HasPrefix(r.URL.String(), "/v1/volumes") || strings.HasSuffix(r.URL.String(), "clone") {
 		var resp api.VolumeCreateResp
 
 		var req api.VolCreateReq
@@ -270,13 +283,19 @@ func handlePOSTRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 		writeResp(w, http.StatusCreated, resp, t)
 	}
 }
+
 func handleDeleteRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
+	if strings.HasPrefix(r.URL.String(), "/v1/volumes") {
+		key := strings.Split(strings.Trim(r.URL.String(), "/"), "/")
+		delete(volumeCache, key[2])
+	}
 	if strings.HasPrefix(r.URL.String(), "/v1/snapshots") {
 		key := strings.Split(strings.Trim(r.URL.String(), "/"), "/")
 		deleteSnap(key[2])
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
 func checkVolume(vol string) bool {
 	_, ok := volumeCache[vol]
 	return ok
@@ -291,6 +310,7 @@ func isSnapsPresent() bool {
 	}
 	return found
 }
+
 func deleteSnap(snapname string) {
 	for key, value := range volumeCache {
 		for i, s := range value.snapList {
@@ -303,6 +323,7 @@ func deleteSnap(snapname string) {
 		}
 	}
 }
+
 func getVolumeNameFromSnap(snap string) string {
 	for key, value := range volumeCache {
 		for _, s := range value.snapList {

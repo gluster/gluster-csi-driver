@@ -1,0 +1,102 @@
+# Copyright 2018 The Gluster CSI Authors.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-controller-glusterfs
+  labels:
+    app: csi-controller-glusterfs
+spec:
+  selector:
+    app: csi-controller-glusterfs
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-controller-glusterfs
+spec:
+  serviceName: "csi-controller-glusterfs"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-controller-glusterfs
+    spec:
+      serviceAccount: glusterfs-csi
+      containers:
+        - name: csi-attacher
+          image: quay.io/k8scsi/csi-attacher:v0.4.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.4.0
+          args:
+            - "--provisioner=org.gluster.glusterfs"
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v0.4.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--connection-timeout=15s"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: glusterfs
+          image: docker.io/gluster/glusterfs-csi-driver
+          args:
+            - "--v=5"
+          env:
+            - name: CSI_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: REST_URL
+              value: http://192.168.121.182:24007
+            - name: REST_SECRET
+              value: b03045b7988258557ecd3e136cd37ba3f928ea0831b3b1b7ed8ae238d36d9071
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+      volumes:
+        - name: socket-dir
+          emptyDir:
