@@ -18,9 +18,9 @@ spec:
     spec:
       hostNetwork: true
       containers:
-      - image: docker.io/gluster/glusterd2-nightly
+      - name: glusterfs
+        image: docker.io/gluster/glusterd2-nightly
         imagePullPolicy: IfNotPresent
-        name: glusterfs
         resources:
           requests:
             memory: 100Mi
@@ -30,8 +30,8 @@ spec:
           mountPath: "/run"
         - name: glusterfs-lvm
           mountPath: "/run/lvm"
-        - mountPath: /var/lib/glusterd2
-          name: glusterd2-config
+        - name: glusterd2-config
+          mountPath: "/var/lib/glusterd2"
         - name: glusterfs-etc
           mountPath: "/etc/glusterfs"
         - name: glusterfs-logs
@@ -57,6 +57,8 @@ spec:
       volumes:
       - name: glusterfs-run
       - name: glusterd2-config
+        hostPath:
+          path: "/var/lib/glusterd2"
       - name: glusterfs-lvm
         hostPath:
           path: "/run/lvm"

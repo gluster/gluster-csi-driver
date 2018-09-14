@@ -48,7 +48,7 @@ func NewNodeServer(g *GfDriver) *NodeServer {
 	}
 }
 
-func NewidentityServer(g *GfDriver) *IdentityServer {
+func NewIdentityServer(g *GfDriver) *IdentityServer {
 	return &IdentityServer{
 		GfDriver: g,
 	}
@@ -56,6 +56,6 @@ func NewidentityServer(g *GfDriver) *IdentityServer {
 
 func (g *GfDriver) Run() {
 	srv := csicommon.NewNonBlockingGRPCServer()
-	srv.Start(g.Endpoint, NewidentityServer(g), NewControllerServer(g), NewNodeServer(g))
+	srv.Start(g.Endpoint, NewIdentityServer(g), NewControllerServer(g), NewNodeServer(g))
 	srv.Wait()
 }
