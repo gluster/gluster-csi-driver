@@ -77,13 +77,13 @@ func TestDriverSuite(t *testing.T) {
 				resp[0] = api.VolumeGetResp{
 					ID:       id,
 					Name:     "test1",
-					Metadata: map[string]string{glusterDescAnn: glusterDescAnnValue},
+					Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
 				}
 
 				resp = append(resp, api.VolumeGetResp{
 					ID:       id,
 					Name:     "test1",
-					Metadata: map[string]string{glusterDescAnn: glusterDescAnnValue},
+					Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
 				})
 				writeResp(w, http.StatusOK, resp, t)
 				volumeCache["test1"] = 1000
@@ -97,7 +97,7 @@ func TestDriverSuite(t *testing.T) {
 					Info: api.VolumeInfo{
 						ID:       id,
 						Name:     vol[2],
-						Metadata: map[string]string{glusterDescAnn: glusterDescAnnValue},
+						Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
 					},
 					Online: true,
 					Size: api.SizeInfo{

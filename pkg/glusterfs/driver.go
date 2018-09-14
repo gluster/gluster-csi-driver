@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	driverName    = "org.gluster.glusterfs"
-	vendorVersion = "0.0.7"
+	glusterfsCSIDriverName    = "org.gluster.glusterfs"
+	glusterfsCSIDriverVersion = "0.0.8"
 )
 
 //CSI Driver for glusterfs
