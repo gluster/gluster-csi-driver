@@ -52,7 +52,7 @@ func handle(config *utils.Config) {
 	}
 	d := gfd.New(config)
 	if d == nil {
-		fmt.Println("Failed to initialize driver")
+		fmt.Println("Failed to initialize GlusterFS CSI driver")
 		os.Exit(1)
 	}
 	d.Run()

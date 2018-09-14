@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	glusterDescAnn            = "GlusterFS-CSI"
-	glusterDescAnnValue       = "gluster.org/glusterfs-csi"
+	volumeOwnerAnn            = "VolumeOwner"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
 )
@@ -136,7 +135,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// If volume does not exist, provision volume
 	glog.V(4).Infof("Received request to create/provision volume name:%s with size:%d", volumeName, volSizeMB)
 	volMetaMap := make(map[string]string)
-	volMetaMap[glusterDescAnn] = glusterDescAnnValue
+	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
 	volumeReq := api.VolCreateReq{
 		Name:         volumeName,
 		Metadata:     volMetaMap,
@@ -205,8 +204,8 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 	}
 
 	// Do the owner validation
-	if glusterAnnVal, found := vol.Info.Metadata[glusterDescAnn]; found {
-		if glusterAnnVal != glusterDescAnnValue {
+	if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; found {
+		if glusterAnnVal != glusterfsCSIDriverName {
 			return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
 				vol.Info.Name, vol.Info.Metadata)
 		}
