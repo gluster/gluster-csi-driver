@@ -3,7 +3,6 @@ package glusterfs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -70,7 +69,7 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 // CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	glog.V(2).Infof("Request received %+v", req)
+	glog.V(2).Infof("request received %+v", req)
 
 	if err := cs.validateCreateVolumeReq(req); err != nil {
 		return nil, err
@@ -91,67 +90,30 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
 	// parse the request.
-	parseResp, parseErr := cs.ParseCreateVolRequest(req)
-	if parseErr != nil {
+	parseResp, err := cs.ParseCreateVolRequest(req)
+	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "failed to parse request")
 	}
 
 	volumeName := parseResp.gdVolReq.Name
 
-	glusterServer, bkpServers, err := cs.checkExistingVolume(volumeName, volSizeMB)
-	if err != nil && err != errVolumeNotFound {
-		glog.Errorf("Error with pre-existing volume: %v", err)
-		return nil, status.Errorf(codes.Internal, "Error with pre-existing volume: %v", err)
-	}
-	if err == nil {
-		resp := &csi.CreateVolumeResponse{
-			Volume: &csi.Volume{
-				Id:            volumeName,
-				CapacityBytes: volSizeBytes,
-				Attributes: map[string]string{
-					"glustervol":        volumeName,
-					"glusterserver":     glusterServer,
-					"glusterbkpservers": strings.Join(bkpServers, ":"),
-				},
-			},
+	err = cs.checkExistingVolume(volumeName, volSizeMB)
+	if err != nil {
+		if err != errVolumeNotFound {
+			glog.Errorf("error checking for pre-existing volume: %v", err)
+			return nil, err
 		}
-		return resp, nil
+		// If volume does not exist, provision volume
+		err = cs.doVolumeCreate(volumeName, volSizeMB)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// If volume does not exist, provision volume
-	glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeMB)
-	volMetaMap := make(map[string]string)
-	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
-	volumeReq := api.VolCreateReq{
-		Name:         volumeName,
-		Metadata:     volMetaMap,
-		ReplicaCount: defaultReplicaCount,
-		Size:         uint64(volSizeMB),
-	}
-
-	glog.V(2).Infof("volume create request: %+v", volumeReq)
-
-	volumeCreateResp, err := cs.client.VolumeCreate(volumeReq)
+	glusterServer, bkpServers, err := cs.getClusterNodes()
 	if err != nil {
-		glog.Errorf("failed to create volume: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to create volume: %v", err)
-	}
-
-	glog.V(3).Infof("volume create response: %+v", volumeCreateResp)
-	err = cs.client.VolumeStart(volumeName, true)
-	if err != nil {
-		//we dont need to delete the volume if volume start fails
-		//as we are listing the volumes and starting it again
-		//before sending back the response
-		glog.Errorf("failed to start volume: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
-	}
-
-	glusterServer, bkpServers, err = cs.getClusterNodes()
-
-	if err != nil {
-		glog.Errorf("Failed to get cluster nodes: %v", err)
-		return nil, status.Errorf(codes.Internal, "Failed to get cluster nodes: %v", err)
+		glog.Errorf("failed to get cluster nodes: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get cluster nodes: %v", err)
 	}
 
 	resp := &csi.CreateVolumeResponse{
@@ -186,56 +148,70 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 	return nil
 }
 
-func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) (string, []string, error) {
-	var (
-		tspServers  []string
-		mountServer string
-		err         error
-	)
+func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) error {
+	glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeMB)
+	volMetaMap := make(map[string]string)
+	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
+	volumeReq := api.VolCreateReq{
+		Name:         volumeName,
+		Metadata:     volMetaMap,
+		ReplicaCount: defaultReplicaCount,
+		Size:         uint64(volSizeMB),
+	}
 
+	glog.V(2).Infof("volume create request: %+v", volumeReq)
+	volumeCreateResp, err := cs.client.VolumeCreate(volumeReq)
+	if err != nil {
+		glog.Errorf("failed to create volume: %v", err)
+		return status.Errorf(codes.Internal, "failed to create volume: %v", err)
+	}
+
+	glog.V(3).Infof("volume create response : %+v", volumeCreateResp)
+	err = cs.client.VolumeStart(volumeName, true)
+	if err != nil {
+		//we dont need to delete the volume if volume start fails
+		//as we are listing the volumes and starting it again
+		//before sending back the response
+		glog.Errorf("failed to start volume: %v", err)
+		return status.Errorf(codes.Internal, "failed to start volume: %v", err)
+	}
+
+	return nil
+}
+
+func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) error {
 	vol, err := cs.client.VolumeStatus(volumeName)
 	if err != nil {
 		glog.Errorf("failed to fetch volume : %v", err)
 		errResp := cs.client.LastErrorResponse()
 		//errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
-			return "", nil, errVolumeNotFound
+			return errVolumeNotFound
 		}
-		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fetching volume details %s", err.Error()))
-
+		return status.Errorf(codes.Internal, "error in fetching volume details %v", err)
 	}
 
 	// Do the owner validation
-	if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; found {
-		if glusterAnnVal != glusterfsCSIDriverName {
-			return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
-				vol.Info.Name, vol.Info.Metadata)
-		}
-	} else {
-		return "", nil, status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
+	if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; !found || (found && glusterAnnVal != glusterfsCSIDriverName) {
+		return status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
 			vol.Info.Name, vol.Info.Metadata)
 	}
 
 	if int(vol.Size.Capacity) != volSizeMB {
-		return "", nil, status.Error(codes.AlreadyExists, fmt.Sprintf("volume already exits with different size: %d", vol.Size.Capacity))
+		return status.Errorf(codes.AlreadyExists, "volume %s already exits with different size: %d", vol.Info.Name, vol.Size.Capacity)
 	}
 
 	//volume has not started, start the volume
 	if !vol.Online {
 		err = cs.client.VolumeStart(vol.Info.Name, true)
 		if err != nil {
-			return "", nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume %s, err: %v", vol.Info.Name, err))
+			return status.Errorf(codes.Internal, "failed to start volume %s: %v", vol.Info.Name, err)
 		}
 	}
 
 	glog.Infof("requested volume %s already exists in the gluster cluster", volumeName)
-	mountServer, tspServers, err = cs.getClusterNodes()
 
-	if err != nil {
-		return "", nil, status.Error(codes.Internal, fmt.Sprintf("error in fetching backup/peer server details %s", err.Error()))
-	}
-
-	return mountServer, tspServers, nil
+	return nil
 }
 
 func (cs *ControllerServer) getClusterNodes() (string, []string, error) {
