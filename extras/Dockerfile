@@ -50,24 +50,26 @@ RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
 
 #-- Build phase
 
-# Build executable
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /build/glusterfs-csi-driver cmd/glusterfs/main.go
+ARG DRIVER
+ARG BUILDDIR=/
 
-# Ensure the binary is statically linked
-RUN ldd /build/glusterfs-csi-driver | grep -q "not a dynamic executable"
+RUN ./scripts/build-drivers.sh ${DRIVER}
 
 #-- Final container
 
 FROM docker.io/centos:7.5.1804 as final
+ARG DRIVER
 
-# Install dependencies
-RUN yum -y install centos-release-gluster && \
+# Install dependencies for node drivers
+RUN [[ "${DRIVER}" != *node* ]] || ( \
+    yum -y install centos-release-gluster && \
     yum -y install glusterfs-fuse && \
     yum clean all -y && \
     rm -rf /var/cache/yum && \
-    rpm -qa | grep gluster | tee /gluster-rpm-versions.txt
+    rpm -qa | grep gluster | tee /gluster-rpm-versions.txt \
+    )
 
-# Copy glusterfs-csi-driver from build phase
+# Copy driver from build phase
 COPY --from=build /build /
 
 # The version of the driver (git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')
@@ -76,12 +78,12 @@ ARG version="(unknown)"
 ARG builddate="(unknown)"
 
 LABEL build-date="${builddate}"
-LABEL io.k8s.description="FUSE-based CSI driver for Gluster file access"
-LABEL name="glusterfs-csi-driver"
-LABEL Summary="FUSE-based CSI driver for Gluster file access"
+LABEL io.k8s.description="${DRIVER} CSI driver for Gluster file access"
+LABEL name="${DRIVER}-csi-driver"
+LABEL Summary="${DRIVER} CSI driver for Gluster file access"
 LABEL vcs-type="git"
 LABEL vcs-url="https://github.com/gluster/gluster-csi-driver"
 LABEL vendor="gluster.org"
 LABEL version="${version}"
 
-ENTRYPOINT ["/glusterfs-csi-driver"]
+ENTRYPOINT ["/${DRIVER}-csi-driver"]
