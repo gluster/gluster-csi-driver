@@ -14,8 +14,8 @@ type IdentityServer struct {
 // GetPluginInfo returns metadata of the plugin
 func (is *IdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	resp := &csi.GetPluginInfoResponse{
-		Name:          driverName,
-		VendorVersion: vendorVersion,
+		Name:          (*is).CsiDrvName,
+		VendorVersion: (*is).CsiDrvVersion,
 	}
 	glog.V(1).Infof("%+v, plugininfo response: %+v", resp)
 	return resp, nil

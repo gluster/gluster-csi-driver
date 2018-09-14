@@ -8,19 +8,15 @@ import (
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
-const (
-	driverName    = "org.gluster.glusterfs"
-	vendorVersion = "0.0.7"
-)
-
 //CSI Driver for glusterfs
 type GfDriver struct {
 	client *restclient.Client
 	*utils.Config
+	*utils.CsiDrvParam
 }
 
 // New returns CSI driver
-func New(config *utils.Config) *GfDriver {
+func New(config *utils.Config, csiConfig *utils.CsiDrvParam) *GfDriver {
 	gfd := &GfDriver{}
 
 	if config != nil {
@@ -31,6 +27,7 @@ func New(config *utils.Config) *GfDriver {
 		return nil
 	}
 
+	gfd.CsiDrvParam = csiConfig
 	glog.V(1).Infof("GlusterFS CSI Driver initialized")
 
 	return gfd

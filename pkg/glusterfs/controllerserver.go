@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	glusterDescAnn            = "GlusterFS-CSI"
+	glusterDescAnn            = "VolumeOwner"
 	glusterDescAnnValue       = "gluster.org/glusterfs-csi"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
@@ -29,31 +29,10 @@ type ControllerServer struct {
 	*GfDriver
 }
 
-// csiDrvParam stores csi driver specific request parameters.
-// This struct will be used to gather specific fields of CSI driver:
-// For eg. csiDrvName, csiDrvVersion..etc
-// and also gather parameters passed from SC which not part of gluster volcreate api.
-// glusterCluster - The resturl of gluster cluster
-// glusterUser - The gluster username who got access to the APIs.
-// glusterUserToken - The password/token of glusterUser to connect to glusterCluster
-// glusterVersion - Says the version of the glustercluster running in glusterCluster endpoint.
-// compMatrix - map which will be internally defined by the driver to make a compatibility
-//              version matrix between CSI driver and gluster cluster. All these fields are optional and can be used if needed.
-
-type csiDrvParam struct {
-	glusterCluster   string
-	glusterUser      string
-	glusterUserToken string
-	glusterVersion   string
-	csiDrvName       string
-	csiDrvVersion    string
-	compMatrix       map[string]string
-}
-
 // RequestConfig is the final struct after parsing request and CSI driver specific input
 type RequestConfig struct {
 	gdVolReq *api.VolCreateReq
-	csiConf  *csiDrvParam
+	csiConf  *utils.CsiDrvParam
 }
 
 func (cs *ControllerServer) ParseRequest(req *csi.CreateVolumeRequest) (*RequestConfig, error) {

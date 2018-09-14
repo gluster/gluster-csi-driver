@@ -30,6 +30,26 @@ type Config struct {
 	RestSecret string // GD2 user password
 }
 
+// CsiDrvParam stores csi driver specific request parameters.
+// This struct will be used to gather specific fields of CSI driver:
+// For eg. csiDrvName, csiDrvVersion..etc
+// and also gather parameters passed from SC which not part of gluster volcreate api.
+// glusterCluster - The resturl of gluster cluster
+// glusterUser - The gluster username who got access to the APIs.
+// glusterUserToken - The password/token of glusterUser to connect to glusterCluster
+// glusterVersion - Says the version of the glustercluster running in glusterCluster endpoint.
+// compMatrix - map which will be internally defined by the driver to make a compatibility
+//              version matrix between CSI driver and gluster cluster. All these fields are optional and can be used if needed.
+type CsiDrvParam struct {
+	GlusterCluster   string
+	GlusterUser      string
+	GlusterUserToken string
+	GlusterVersion   string
+	CsiDrvName       string
+	CsiDrvVersion    string
+	CompMatrix       map[string]string
+}
+
 //NewConfig returns config struct to initialize new driver
 func NewConfig() *Config {
 	return &Config{}
