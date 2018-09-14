@@ -29,47 +29,6 @@ type ControllerServer struct {
 	*GfDriver
 }
 
-// csiDrvParam stores csi driver specific request parameters.
-// This struct will be used to gather specific fields of CSI driver:
-// For eg. csiDrvName, csiDrvVersion..etc
-// and also gather parameters passed from SC which not part of gluster volcreate api.
-// glusterCluster - The resturl of gluster cluster
-// glusterUser - The gluster username who got access to the APIs.
-// glusterUserToken - The password/token of glusterUser to connect to glusterCluster
-// glusterVersion - Says the version of the glustercluster running in glusterCluster endpoint.
-// compMatrix - map which will be internally defined by the driver to make a compatibility
-//              version matrix between CSI driver and gluster cluster. All these fields are optional and can be used if needed.
-
-type csiDrvParam struct {
-	glusterCluster   string
-	glusterUser      string
-	glusterUserToken string
-	glusterVersion   string
-	csiDrvName       string
-	csiDrvVersion    string
-	compMatrix       map[string]string
-}
-
-// RequestConfig is the final struct after parsing request and CSI driver specific input
-type RequestConfig struct {
-	gdVolReq *api.VolCreateReq
-	csiConf  *csiDrvParam
-}
-
-func (cs *ControllerServer) ParseRequest(req *csi.CreateVolumeRequest) (*RequestConfig, error) {
-
-	var reqConf RequestConfig
-	var gdReq api.VolCreateReq
-
-	reqConf.gdVolReq = &gdReq
-
-	// Get Volume name
-	if req != nil {
-		reqConf.gdVolReq.Name = req.Name
-	}
-	return &reqConf, nil
-}
-
 //CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	var glusterServer string
@@ -97,21 +56,16 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
-	// parse the request.
-	parseResp, parseErr := cs.ParseRequest(req)
-	if parseErr != nil {
-		return nil, status.Error(codes.InvalidArgument, "failed to parse request")
-	}
+	// Get Volume name : TODO use the values from request
+	volumeName := req.Name
+	glusterVol := req.GetParameters()["glustervol"]
+	glusterServer = req.GetParameters()["glusterserver"]
+	glusterURL := req.GetParameters()["glusterurl"]
+	glusterURLPort := req.GetParameters()["glusterurlport"]
+	glusterUser := req.GetParameters()["glusteruser"]
+	glusterUserSecret := req.GetParameters()["glusterusersecret"]
 
-	if parseResp != nil && parseResp.gdVolReq != nil {
-		if len(parseResp.gdVolReq.Name) == 0 {
-			return nil, status.Error(codes.InvalidArgument, "volumename is nil")
-		}
-	} else {
-		return nil, status.Error(codes.InvalidArgument, "parse response in nil")
-	}
-
-	volumeName := parseResp.gdVolReq.Name
+	glog.V(3).Infof("Request fields:[ %v %v %v %v %v %v]", glusterVol, glusterServer, glusterURL, glusterURLPort, glusterUser, glusterUserSecret)
 
 	glusterServer, bkpServers, err := cs.checkExistingVolume(volumeName, volSizeMB)
 	if err != nil && err != errVolumeNotFound {
