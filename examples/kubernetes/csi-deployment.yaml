@@ -58,8 +58,6 @@ spec:
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--resturl=$(REST_URL)"
-            - "--restsecret=$(REST_SECRET)"
           env:
             - name: NODE_ID
               valueFrom:
@@ -121,8 +119,6 @@ spec:
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--resturl=$(REST_URL)"
-            - "--restsecret=$(REST_SECRET)"
           env:
             - name: NODE_ID
               valueFrom:
@@ -197,8 +193,6 @@ spec:
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--resturl=$(REST_URL)"
-            - "--restsecret=$(REST_SECRET)"
           env:
             - name: NODE_ID
               valueFrom:
