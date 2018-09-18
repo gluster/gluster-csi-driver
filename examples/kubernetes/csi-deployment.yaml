@@ -93,6 +93,7 @@ spec:
     spec:
       serviceAccount: glusterfs-csi
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: driver-registrar
           image: quay.io/k8scsi/driver-registrar:v0.3.0

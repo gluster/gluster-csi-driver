@@ -48,26 +48,23 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	volumeName := req.Name
-	glusterVol := req.GetParameters()["glustervol"]
-	glusterServer := req.GetParameters()["glusterserver"]
-	glusterServerKind := req.GetParameters()["glusterserverkind"]
-	glusterURL := req.GetParameters()["glusterurl"]
-	glusterUser := req.GetParameters()["glusteruser"]
-	glusterUserSecret := req.GetParameters()["glusterusersecret"]
+	reqParams := req.GetParameters()
 
-	glog.V(3).Infof("Request fields:[ %v %v %v %v %v]", glusterVol, glusterServer, glusterURL, glusterUser, glusterUserSecret)
-
+	if len(reqParams["glusteruser"]) == 0 {
+		reqParams["glusteruser"] = "admin"
+	}
 	gc := &GlusterClient{
-		kind:     GlusterServerKind(glusterServerKind),
-		url:      glusterURL,
-		username: glusterUser,
-		password: glusterUserSecret,
+		kind:     GlusterServerKind(reqParams["glusterserverkind"]),
+		url:      reqParams["glusterurl"],
+		username: reqParams["glusteruser"],
+		password: reqParams["glusterusersecret"],
 	}
 	err := glusterClientCache.Init(gc)
 	if err != nil {
 		glog.Error(err)
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
+	reqParams["glusterserververkind"] = string(gc.kind)
 
 	err = gc.CheckExistingVolume(volumeName, volSizeBytes)
 	if err != nil && err != errVolumeNotFound {
@@ -76,34 +73,27 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	} else if err == errVolumeNotFound {
 		// If volume does not exist, provision volume
 		glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeBytes)
-		err = gc.CreateVolume(volumeName, volSizeBytes)
+		err = gc.CreateVolume(volumeName, volSizeBytes, reqParams)
 		if err != nil {
 			glog.Errorf("failed to create volume: %v", err)
 			return nil, status.Errorf(codes.Internal, "failed to create volume: %v", err)
 		}
 	}
+	reqParams["glustervol"] = volumeName
 
 	glusterServers, err := gc.GetClusterNodes(volumeName)
 	if err != nil {
 		glog.Errorf("Failed to get cluster nodes for %s: %v", volumeName, err)
 		return nil, status.Errorf(codes.Internal, "Failed to get cluster nodes for %s: %v", volumeName, err)
 	}
-	glusterServer = glusterServers[0]
-	bkpservers = glusterServers[1:]
+	reqParams["glusterserver"] = glusterServers[0]
+	reqParams["glusterbkpservers"] = strings.Join(glusterServers[1:], ":")
 
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			Id:            volumeName,
 			CapacityBytes: volSizeBytes,
-			Attributes: map[string]string{
-				"glustervol":           volumeName,
-				"glusterserver":        glusterServer,
-				"glusterbkpservers":    strings.Join(bkpServers, ":"),
-				"glusterserververkind": string(gc.kind),
-				"glusterurl":           glusterURL,
-				"glusteruser":          glusterUser,
-				"glusterusersecret":    glusterUserSecret,
-			},
+			Attributes:    reqParams,
 		},
 	}
 

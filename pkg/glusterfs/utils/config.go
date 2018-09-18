@@ -9,6 +9,7 @@ const (
 
 	KiB int64 = 1024
 	MiB int64 = 1024 * KiB
+	GiB int64 = 1024 * MiB
 )
 
 // RoundUpSize calculates how many allocation units are needed to accommodate
@@ -27,6 +28,11 @@ func RoundUpToGB(sizeBytes int64) int64 {
 // RoundUpToMiB rounds up given quantity upto chunks of MiB
 func RoundUpToMiB(sizeBytes int64) int64 {
 	return RoundUpSize(sizeBytes, MiB)
+}
+
+// RoundUpToGiB rounds up given quantity upto chunks of GiB
+func RoundUpToGiB(sizeBytes int64) int64 {
+	return RoundUpSize(sizeBytes, GiB)
 }
 
 // Config struct fills the parameters of request or user input

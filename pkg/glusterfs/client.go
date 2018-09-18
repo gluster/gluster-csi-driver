@@ -13,6 +13,8 @@ import (
 	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
+	hcli "github.com/heketi/heketi/client/api/go-client"
+	hapi "github.com/heketi/heketi/pkg/glusterfs/api"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -24,8 +26,17 @@ type GlusterServerKind string
 const (
 	GD2DefaultInsecure = false
 
+	HeketiDefaultBlock              = false
+	HeketiDefaultReplica            = 3
+	HeketiDefaultDisperseData       = 3
+	HeketiDefaultDisperseRedundancy = 2
+	HeketiDefaultGid                = 0
+	HeketiDefaultSnapshot           = true
+	HeketiDefaultSnapFactor         = 1.0
+
 	ServerKindUnknown GlusterServerKind = ""
 	ServerKindGD2     GlusterServerKind = "glusterd2"
+	ServerKindHeketi  GlusterServerKind = "heketi"
 )
 
 type GD2Client struct {
@@ -35,12 +46,18 @@ type GD2Client struct {
 	insecureBool bool
 }
 
+type HeketiClient struct {
+	heketiClient *hcli.Client
+	clusterId    string
+}
+
 type GlusterClient struct {
 	kind     GlusterServerKind
 	url      string
 	username string
 	password string
 	*GD2Client
+	*HeketiClient
 }
 
 // GlusterClients is a map of maps of GlusterClient structs. The first map is
@@ -69,6 +86,51 @@ func SetStringIfEmpty(old, new string) string {
 	return old
 }
 
+func ParseIntWithDefault(new string, defInt int) int {
+	newInt := defInt
+
+	if len(new) != 0 {
+		parsedInt, err := strconv.Atoi(new)
+		if err != nil {
+			glog.Errorf("Bad int string [%s], using default [%s]", new, defInt)
+		} else {
+			newInt = parsedInt
+		}
+	}
+
+	return newInt
+}
+
+func ParseBoolWithDefault(new string, defBool bool) bool {
+	newBool := defBool
+
+	if len(new) != 0 {
+		parsedBool, err := strconv.ParseBool(new)
+		if err != nil {
+			glog.Errorf("Bad bool string [%s], using default [%s]", new, defBool)
+		} else {
+			newBool = parsedBool
+		}
+	}
+
+	return newBool
+}
+
+func ParseFloatWithDefault(new string, defFloat float32) float32 {
+	newFloat := defFloat
+
+	if len(new) != 0 {
+		parsedFloat, err := strconv.ParseFloat(new, 32)
+		if err != nil {
+			glog.Errorf("Bad float string [%s], using default [%s]", new, defFloat)
+		} else {
+			newFloat = float32(parsedFloat)
+		}
+	}
+
+	return newFloat
+}
+
 func (gc *GlusterClient) gd2CheckRespErr(orig error) error {
 	errResp := gc.gd2Client.LastErrorResponse()
 	//errResp will be nil in case of No route to host error
@@ -89,9 +151,17 @@ func (gc *GlusterClient) gd2SetInsecure(new string) {
 	gc.insecureBool = insecureBool
 }
 
+func (gc *GlusterClient) heketiCheckRespErr(orig error) error {
+	if orig.Error() == "Invalid path or request" {
+		return errVolumeNotFound
+	}
+	return orig
+}
+
 func (gc *GlusterClient) detectServerKind() error {
 	serverTestUrls := map[GlusterServerKind]string{
-		ServerKindGD2: gc.url + "/ping",
+		ServerKindGD2:    gc.url + "/ping",
+		ServerKindHeketi: gc.url + "/hello",
 	}
 
 	for serverKind, testUrl := range serverTestUrls {
@@ -128,6 +198,26 @@ func (gc *GlusterClient) GetClusterNodes(volumeId string) ([]string, error) {
 				ip := strings.Split(a, ":")
 				glusterServers = append(glusterServers, ip[0])
 			}
+		}
+	case ServerKindHeketi:
+		client := gc.heketiClient
+		clr, err := client.ClusterList()
+		if err != nil {
+			return nil, fmt.Errorf("failed to list heketi clusters: %v", err)
+		}
+		cluster := clr.Clusters[0]
+		clusterInfo, err := client.ClusterInfo(cluster)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get cluster %s details: %v", cluster, err)
+		}
+
+		for _, node := range clusterInfo.Nodes {
+			nodeInfo, err := client.NodeInfo(string(node))
+			if err != nil {
+				return nil, fmt.Errorf("failed to get node %s info: %v", string(node), err)
+			}
+			nodeAddr := strings.Join(nodeInfo.NodeAddRequest.Hostnames.Storage, "")
+			glusterServers = append(glusterServers, nodeAddr)
 		}
 	default:
 		return nil, fmt.Errorf("Invalid server kind: %s", gc.kind)
@@ -167,6 +257,25 @@ func (gc *GlusterClient) CheckExistingVolume(volumeId string, volSizeBytes int64
 				return fmt.Errorf("failed to start volume %s", vol.Info.Name)
 			}
 		}
+	case ServerKindHeketi:
+		var vol *csi.Volume
+		vols, err := gc.ListVolumes()
+		if err != nil {
+			return fmt.Errorf("Error listing volumes: %v", err)
+		}
+
+		for _, volEnt := range vols {
+			if volEnt.Id == volumeId {
+				vol = volEnt
+			}
+		}
+		if vol == nil {
+			return errVolumeNotFound
+		}
+
+		if volSizeBytes > 0 && utils.RoundUpToGiB(vol.CapacityBytes) != utils.RoundUpToGiB(volSizeBytes) {
+			return fmt.Errorf("volume %s already exists with different size: %d GiB", volumeId, utils.RoundUpToGiB(vol.CapacityBytes))
+		}
 	default:
 		return fmt.Errorf("Invalid server kind: %s", kind)
 	}
@@ -202,6 +311,54 @@ func (gc *GlusterClient) CreateVolume(volumeName string, volSizeBytes int64, par
 			//before sending back the response
 			return fmt.Errorf("failed to start volume %s: %v", volumeName, err)
 		}
+	case ServerKindHeketi:
+		client := gc.heketiClient
+
+		durabilityInfo := hapi.VolumeDurabilityInfo{Type: hapi.DurabilityReplicate, Replicate: hapi.ReplicaDurability{Replica: HeketiDefaultReplica}}
+		volumeType := params["glustervolumetype"]
+		if len(volumeType) != 0 {
+			volumeTypeList := strings.Split(volumeType, ":")
+
+			switch volumeTypeList[0] {
+			case "replicate":
+				if len(volumeTypeList) >= 2 {
+					durabilityInfo.Replicate.Replica = ParseIntWithDefault(volumeTypeList[1], HeketiDefaultReplica)
+				}
+			case "disperse":
+				if len(volumeTypeList) >= 3 {
+					data := ParseIntWithDefault(volumeTypeList[1], HeketiDefaultDisperseData)
+					redundancy := ParseIntWithDefault(volumeTypeList[2], HeketiDefaultDisperseRedundancy)
+					durabilityInfo = hapi.VolumeDurabilityInfo{Type: hapi.DurabilityEC, Disperse: hapi.DisperseDurability{Data: data, Redundancy: redundancy}}
+				} else {
+					return fmt.Errorf("Volume type 'disperse' must have format: 'disperse:<data>:<redundancy>'")
+				}
+			case "none":
+				durabilityInfo = hapi.VolumeDurabilityInfo{Type: hapi.DurabilityDistributeOnly}
+			default:
+				return fmt.Errorf("Invalid volume type %s", volumeType)
+			}
+		}
+
+		volumeReq := &hapi.VolumeCreateRequest{
+			Size:                 int(utils.RoundUpToGiB(volSizeBytes)),
+			Name:                 volumeName,
+			Durability:           durabilityInfo,
+			Gid:                  int64(ParseIntWithDefault(params["glustergid"], HeketiDefaultGid)),
+			GlusterVolumeOptions: strings.Split(params["glustervolumeoptions"], ","),
+			Block:                ParseBoolWithDefault(params["glusterblockhost"], HeketiDefaultBlock),
+			Snapshot: struct {
+				Enable bool    `json:"enable"`
+				Factor float32 `json:"factor"`
+			}{
+				Enable: ParseBoolWithDefault(params["glustersnapshot"], HeketiDefaultSnapshot),
+				Factor: ParseFloatWithDefault(params["glustersnapfactor"], HeketiDefaultSnapFactor),
+			},
+		}
+
+		_, err := client.VolumeCreate(volumeReq)
+		if err != nil {
+			return fmt.Errorf("Failed to create volume %s: %v", volumeName, err)
+		}
 	default:
 		return fmt.Errorf("Invalid server kind: %s", kind)
 	}
@@ -221,6 +378,27 @@ func (gc *GlusterClient) DeleteVolume(volumeId string) error {
 		err = client.VolumeDelete(volumeId)
 		if err != nil {
 			return gc.gd2CheckRespErr(err)
+		}
+	case ServerKindHeketi:
+		var vol *csi.Volume
+		vols, err := gc.ListVolumes()
+		if err != nil {
+			return fmt.Errorf("Error listing volumes: %v", err)
+		}
+
+		for _, volEnt := range vols {
+			if volEnt.Id == volumeId {
+				vol = volEnt
+			}
+		}
+		if vol == nil {
+			return errVolumeNotFound
+		}
+
+		client := gc.heketiClient
+		err = client.VolumeDelete(vol.Attributes["glustervolheketiid"])
+		if err != nil {
+			return gc.heketiCheckRespErr(err)
 		}
 	default:
 		return fmt.Errorf("Invalid server kind: %s", gc.kind)
@@ -250,6 +428,25 @@ func (gc GlusterClient) ListVolumes() ([]*csi.Volume, error) {
 			volumes = append(volumes, &csi.Volume{
 				Id:            vol.Name,
 				CapacityBytes: (int64(v.Size.Capacity)) * utils.MB,
+			})
+		}
+	case ServerKindHeketi:
+		client := gc.heketiClient
+		vols, err := client.VolumeList()
+		if err != nil {
+			return nil, err
+		}
+		for _, volId := range vols.Volumes {
+			vol, err := client.VolumeInfo(volId)
+			if err != nil {
+				return nil, err
+			}
+			volumes = append(volumes, &csi.Volume{
+				Id:            vol.VolumeInfo.VolumeCreateRequest.Name,
+				CapacityBytes: (int64(vol.VolumeCreateRequest.Size)) * utils.GiB,
+				Attributes: map[string]string{
+					"glustervolheketiid": vol.VolumeInfo.Id,
+				},
 			})
 		}
 	default:
@@ -387,6 +584,11 @@ func (gcc GlusterClients) Init(client *GlusterClient) error {
 			client.GD2Client = SetPointerIfEmpty(client.GD2Client, usrEnt.GD2Client).(*GD2Client)
 			client.cacert = SetStringIfEmpty(client.cacert, usrEnt.cacert)
 			client.gd2SetInsecure(usrEnt.insecure)
+		case ServerKindHeketi:
+			if client.HeketiClient == nil {
+				client.HeketiClient = &HeketiClient{}
+			}
+			client.HeketiClient = SetPointerIfEmpty(client.HeketiClient, usrEnt.HeketiClient).(*HeketiClient)
 		default:
 			err = fmt.Errorf("invalid server kind: %s", client.kind)
 		}
@@ -410,6 +612,11 @@ func (gcc GlusterClients) Init(client *GlusterClient) error {
 				return fmt.Errorf("failed to create %s REST client: %s", client.kind, err)
 			}
 			client.gd2Client = gd2
+		case ServerKindHeketi:
+			if client.HeketiClient == nil {
+				client.HeketiClient = &HeketiClient{}
+			}
+			client.heketiClient = hcli.NewClient(client.url, client.username, client.password)
 		default:
 			return fmt.Errorf("invalid server kind: %s", client.kind)
 		}
