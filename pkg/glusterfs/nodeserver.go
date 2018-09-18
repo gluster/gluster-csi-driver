@@ -45,7 +45,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(targetPath, 0750); err != nil {
+			if err = os.MkdirAll(targetPath, 0750); err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			notMnt = true

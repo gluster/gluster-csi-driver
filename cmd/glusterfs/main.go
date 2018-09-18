@@ -12,11 +12,13 @@ import (
 )
 
 func init() {
-	flag.Set("logtostderr", "true")
+	// #nosec
+	_ = flag.Set("logtostderr", "true")
 }
 
 func main() {
-	flag.CommandLine.Parse([]string{})
+	// #nosec
+	_ = flag.CommandLine.Parse([]string{})
 	var config = utils.NewConfig()
 
 	cmd := &cobra.Command{
@@ -30,7 +32,8 @@ func main() {
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	cmd.PersistentFlags().StringVar(&config.NodeID, "nodeid", "", "CSI node id")
-	cmd.MarkPersistentFlagRequired("nodeid")
+	// #nosec
+	_ = cmd.MarkPersistentFlagRequired("nodeid")
 
 	cmd.PersistentFlags().StringVar(&config.Endpoint, "endpoint", "", "CSI endpoint")
 
@@ -41,7 +44,7 @@ func main() {
 	cmd.PersistentFlags().StringVar(&config.RestSecret, "restsecret", "", "glusterd2 rest user secret")
 
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
 	}
 }

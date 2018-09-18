@@ -23,11 +23,17 @@ type GfDriver struct {
 func New(config *utils.Config) *GfDriver {
 	gfd := &GfDriver{}
 
-	if config != nil {
-		gfd.Config = config
-		gfd.client, _ = restclient.New(config.RestURL, config.RestUser, config.RestSecret, "", false)
-	} else {
+	if config == nil {
 		glog.Errorf("GlusterFS CSI Driver initialization failed")
+		return nil
+	}
+
+	gfd.Config = config
+	var err error
+	gfd.client, err = restclient.New(config.RestURL, config.RestUser, config.RestSecret, "", false)
+
+	if err != nil {
+		glog.Errorf("Error creating GD2 REST client: %s", err.Error())
 		return nil
 	}
 
@@ -50,8 +56,8 @@ func NewNodeServer(g *GfDriver) *NodeServer {
 	}
 }
 
-// NewidentityServer initialize an identity server for glusterfs CSI driver.
-func NewidentityServer(g *GfDriver) *IdentityServer {
+// NewIdentityServer initialize an identity server for glusterfs CSI driver.
+func NewIdentityServer(g *GfDriver) *IdentityServer {
 	return &IdentityServer{
 		GfDriver: g,
 	}
@@ -60,6 +66,6 @@ func NewidentityServer(g *GfDriver) *IdentityServer {
 // Run start a non-blocking grpc controller,node and identityserver for glusterfs CSI driver which can serve multiple parallel requests
 func (g *GfDriver) Run() {
 	srv := csicommon.NewNonBlockingGRPCServer()
-	srv.Start(g.Endpoint, NewidentityServer(g), NewControllerServer(g), NewNodeServer(g))
+	srv.Start(g.Endpoint, NewIdentityServer(g), NewControllerServer(g), NewNodeServer(g))
 	srv.Wait()
 }

@@ -20,6 +20,7 @@ import (
 
 var volumeCache = make(map[string]uint64)
 
+// nolint: gocyclo
 func TestDriverSuite(t *testing.T) {
 	glusterMounter = &mount.FakeMounter{}
 	socket := "/tmp/csi.sock"
@@ -40,8 +41,7 @@ func TestDriverSuite(t *testing.T) {
 		switch r.Method {
 		case "GET":
 			if strings.Contains(r.URL.String(), "/v1/peers") {
-				var resp api.PeerListResp
-				resp = make(api.PeerListResp, 1)
+				resp := make(api.PeerListResp, 1)
 				resp[0] = api.PeerGetResp{
 					Name: "node1.com",
 					PeerAddresses: []string{
@@ -72,8 +72,7 @@ func TestDriverSuite(t *testing.T) {
 			}
 
 			if strings.HasSuffix(r.URL.String(), "/v1/volumes") {
-				var resp api.VolumeListResp
-				resp = make(api.VolumeListResp, 1)
+				resp := make(api.VolumeListResp, 1)
 				resp[0] = api.VolumeGetResp{
 					ID:       id,
 					Name:     "test1",
@@ -92,8 +91,7 @@ func TestDriverSuite(t *testing.T) {
 
 			vol := strings.Split(strings.Trim(r.URL.String(), "/"), "/")
 			if checkVolume(vol[2]) {
-				var resp api.VolumeStatusResp
-				resp = api.VolumeStatusResp{
+				resp := api.VolumeStatusResp{
 					Info: api.VolumeInfo{
 						ID:       id,
 						Name:     vol[2],

@@ -82,7 +82,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// If capacity mentioned, pick that or use default size 1 GB
 	volSizeBytes := defaultVolumeSize
 	if req.GetCapacityRange() != nil {
-		volSizeBytes = int64(req.GetCapacityRange().GetRequiredBytes())
+		volSizeBytes = req.GetCapacityRange().GetRequiredBytes()
 	}
 
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
@@ -104,7 +104,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		resp := &csi.CreateVolumeResponse{
 			Volume: &csi.Volume{
 				Id:            volumeName,
-				CapacityBytes: int64(volSizeBytes),
+				CapacityBytes: volSizeBytes,
 				Attributes: map[string]string{
 					"glustervol":        volumeName,
 					"glusterserver":     glusterServer,
@@ -154,7 +154,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			Id:            volumeName,
-			CapacityBytes: int64(volSizeBytes),
+			CapacityBytes: volSizeBytes,
 			Attributes: map[string]string{
 				"glustervol":        volumeName,
 				"glusterserver":     glusterServer,
@@ -219,13 +219,13 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 
 	//volume has not started, start the volume
 	if !vol.Online {
-		err := cs.client.VolumeStart(vol.Info.Name, true)
+		err = cs.client.VolumeStart(vol.Info.Name, true)
 		if err != nil {
 			return "", nil, status.Error(codes.Internal, fmt.Sprintf("failed to start volume %s, err: %v", vol.Info.Name, err))
 		}
 	}
 
-	glog.Info("Requested volume %s already exists in the gluster cluster", volumeName)
+	glog.Infof("Requested volume %s already exists in the gluster cluster", volumeName)
 	mountServer, tspServers, err = cs.getClusterNodes()
 
 	if err != nil {
