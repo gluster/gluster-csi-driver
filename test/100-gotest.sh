@@ -19,8 +19,7 @@ failed=0
 for gopackage in ${GOPACKAGES}; do
 	echo "--- testing: ${gopackage} ---"
 	# shellcheck disable=SC2086
-	go test ${GOTESTOPTS} "${gopackage}"
-	[ $? -ne 0 ] && ((failed+=1))
+	go test ${GOTESTOPTS} "${gopackage}" || ((failed+=1))
 	if [[ -f cover.out ]]; then
 		# Append to coverfile
 		grep -v "^mode: count" cover.out >> "${COVERFILE}"

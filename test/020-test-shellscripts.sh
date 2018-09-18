@@ -38,10 +38,8 @@ SCRIPTS=$(find . \( -path ./vendor -o -path ./.git -o -path ./build \) -prune \
 failed=0
 for script in ${SCRIPTS}; do
 	err=0
-	test_syntax "${script}"
-	[[ $? -ne 0 ]] && err=1
-	test_shellcheck "${script}"
-	[[ $? -ne 0 ]] && err=1
+	test_syntax "${script}" || err=1
+	test_shellcheck "${script}" || err=1
 	((failed+=err))
 	if [[ ${err} -ne 0 && ${HEKETI_TEST_EXITFIRST} = "yes" ]]; then
 		echo "detected issues in ${script}" >&2

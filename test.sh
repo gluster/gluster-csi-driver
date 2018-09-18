@@ -108,9 +108,8 @@ export CSI_TEST_SCRIPT_DIR="${SCRIPT_DIR}"
 export CSI_TEST_COVERAGE=${coverage}
 
 cd "${SCRIPT_DIR}" || exit 1
-for tname in $(ls test | sort) ; do
-	tpath="./test/${tname}"
-	if [[ ${tpath} =~ .*\.sh$ && -f ${tpath} && -x ${tpath} ]]; then
-		run_test "${tpath}"
+for tname in $(find ./test | sort) ; do
+	if [[ ${tname} =~ .*\.sh$ && -f ${tname} && -x ${tname} ]]; then
+		run_test "${tname}"
 	fi
 done
