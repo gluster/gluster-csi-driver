@@ -2,7 +2,7 @@
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-#You may obtain a copy of the License at
+# You may obtain a copy of the License at
 
 #    http://www.apache.org/licenses/LICENSE-2.0
 
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+---
 
 kind: Service
 apiVersion: v1
@@ -55,7 +57,7 @@ spec:
 
         - name: glusterfs
           image: docker.io/gluster/glusterfs-csi-driver
-          args :
+          args:
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
@@ -78,7 +80,7 @@ spec:
       volumes:
         - name: socket-dir
           emptyDir:
-          
+
 ---
 kind: DaemonSet
 apiVersion: apps/v1beta2
@@ -118,7 +120,7 @@ spec:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: docker.io/gluster/glusterfs-csi-driver
-          args :
+          args:
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
@@ -194,7 +196,7 @@ spec:
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: glusterfs
           image: docker.io/gluster/glusterfs-csi-driver
-          args :
+          args:
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
@@ -232,7 +234,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "update","create","delete"]
+    verbs: ["get", "list", "watch", "update", "create", "delete"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch"]
