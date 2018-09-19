@@ -24,11 +24,12 @@ const (
 
 var errVolumeNotFound = errors.New("volume not found")
 
+// ControllerServer struct of Glusterfs CSI driver with supported methods of CSI controller server spec.
 type ControllerServer struct {
 	*GfDriver
 }
 
-//CreateVolume creates and starts the volume
+// CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	var glusterServer string
 	var bkpServers []string
@@ -268,7 +269,7 @@ func (cs *ControllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-//ControllerUnpublishVolume return Unimplemented error
+// ControllerUnpublishVolume return Unimplemented error
 func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
@@ -382,17 +383,17 @@ func (cs *ControllerServer) ControllerGetCapabilities(ctx context.Context, req *
 	return resp, nil
 }
 
-//CreateSnapshot
+// CreateSnapshot create snapshot of an existing PV
 func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-//DeleteSnapshot
+// DeleteSnapshot delete provided snapshot of a PV
 func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-//ListSnapshots
+// ListSnapshots list the snapshots of a PV
 func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }

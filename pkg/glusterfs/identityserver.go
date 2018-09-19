@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 )
 
+// IdentityServer struct of Glusterfs CSI driver with supported methods of CSI identity server spec.
 type IdentityServer struct {
 	*GfDriver
 }
