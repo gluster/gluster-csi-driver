@@ -32,21 +32,14 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 // NodePublishVolume mounts the volume mounted to the staging path to the target path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-
-	if req == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "request cannot be empty")
-	}
-
-	if req.VolumeId == "" {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
-	}
-
 	glog.V(2).Infof("Request received %+v", req)
+
+	if err := ns.validateNodePublishVolumeReq(req); err != nil {
+		return nil, err
+	}
+
 	targetPath := req.GetTargetPath()
 
-	if targetPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path cannot be empty")
-	}
 	notMnt, err := glusterMounter.IsLikelyNotMountPoint(targetPath)
 
 	if err != nil {
@@ -71,10 +64,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 	gs := req.GetVolumeAttributes()["glusterserver"]
 
-	if req.VolumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
-	}
-
 	ep := req.GetVolumeAttributes()["glustervol"]
 	source := fmt.Sprintf("%s:%s", gs, ep)
 
@@ -90,6 +79,25 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func (ns *NodeServer) validateNodePublishVolumeReq(req *csi.NodePublishVolumeRequest) error {
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request cannot be empty")
+	}
+
+	if req.GetVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
+	}
+
+	if req.GetTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "NodePublishVolume Target Path cannot be empty")
+	}
+
+	if req.GetVolumeCapability() == nil {
+		return status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
+	}
+	return nil
 }
 
 // NodeUnpublishVolume unmounts the volume from the target path
