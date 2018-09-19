@@ -33,20 +33,12 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	var glusterServer string
 	var bkpServers []string
 
-	if req == nil {
-		glog.Errorf("volume create request is nil")
-		return nil, status.Errorf(codes.InvalidArgument, "request cannot be empty")
-	}
+	glog.V(2).Infof("Request received %+v", req)
 
-	if req.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "Name is a required field")
+	if err := cs.validateCreateVolumeReq(req); err != nil {
+		return nil, err
 	}
 	glog.V(1).Infof("creating volume with name : %s", req.Name)
-
-	if req.VolumeCapabilities == nil || len(req.VolumeCapabilities) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume capabilities is a required field")
-	}
-
 	// If capacity mentioned, pick that or use default size 1 GB
 	volSizeBytes := defaultVolumeSize
 	if req.GetCapacityRange() != nil {
@@ -136,6 +128,22 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	glog.V(4).Infof("CSI Volume response: %+v", resp)
 	return resp, nil
+}
+
+func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest) error {
+	if req == nil {
+		return status.Errorf(codes.InvalidArgument, "request cannot be empty")
+	}
+
+	if req.GetName() == "" {
+		return status.Error(codes.InvalidArgument, "Name is a required field")
+	}
+
+	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
+		return status.Error(codes.InvalidArgument, "Volume capabilities is a required field")
+	}
+
+	return nil
 }
 
 func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) (string, []string, error) {
