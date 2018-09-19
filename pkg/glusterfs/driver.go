@@ -13,7 +13,7 @@ const (
 	glusterfsCSIDriverVersion = "0.0.8"
 )
 
-//CSI Driver for glusterfs
+// GfDriver is the struct embedding information about the connection to gluster cluster and configuration of CSI driver.
 type GfDriver struct {
 	client *restclient.Client
 	*utils.Config
@@ -36,24 +36,28 @@ func New(config *utils.Config) *GfDriver {
 	return gfd
 }
 
+// NewControllerServer initialize a controller server for glusterfs CSI driver.
 func NewControllerServer(g *GfDriver) *ControllerServer {
 	return &ControllerServer{
 		GfDriver: g,
 	}
 }
 
+// NewNodeServer initialize a node server for glusterfs CSI driver.
 func NewNodeServer(g *GfDriver) *NodeServer {
 	return &NodeServer{
 		GfDriver: g,
 	}
 }
 
+// NewidentityServer initialize an identity server for glusterfs CSI driver.
 func NewidentityServer(g *GfDriver) *IdentityServer {
 	return &IdentityServer{
 		GfDriver: g,
 	}
 }
 
+// Run start a non-blocking grpc controller,node and identityserver for glusterfs CSI driver which can serve multiple parallel requests
 func (g *GfDriver) Run() {
 	srv := csicommon.NewNonBlockingGRPCServer()
 	srv.Start(g.Endpoint, NewidentityServer(g), NewControllerServer(g), NewNodeServer(g))

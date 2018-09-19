@@ -14,6 +14,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util"
 )
 
+// NodeServer struct of Glusterfs CSI driver with supported methods of CSI node server spec.
 type NodeServer struct {
 	*GfDriver
 }
@@ -136,13 +137,14 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
+// NodeGetId returns NodeGetIdResponse for CO.
 func (ns *NodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) (*csi.NodeGetIdResponse, error) {
 	return &csi.NodeGetIdResponse{
 		NodeId: ns.GfDriver.NodeID,
 	}, nil
 }
 
-//NodeGetInfo info
+// NodeGetInfo info
 func (ns *NodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
 		NodeId: ns.GfDriver.NodeID,
