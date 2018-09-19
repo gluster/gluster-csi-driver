@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/asaskevich/govalidator"
+  packages = ["."]
+  revision = "ccb8e960c48f04d6935e72476ae4a51028f9e22f"
+  version = "v9"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -47,6 +53,12 @@
   name = "github.com/gluster/glusterd2"
   packages = ["pkg/api","pkg/errors","pkg/restclient","pkg/utils","plugins/bitrot/api","plugins/device/api","plugins/events/api","plugins/georeplication/api","plugins/glustershd/api"]
   revision = "7f6a0cee0da559d4dc5138507c51770cc9a5606c"
+
+[[projects]]
+  name = "github.com/go-ozzo/ozzo-validation"
+  packages = [".","is"]
+  revision = "9d6782aa52aad2ec5f3ea5af63b7dc4bc5192c40"
+  version = "v3.4.0"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -109,6 +121,12 @@
   revision = "ef8a98b0bbce4a65b5aa4c368430a80ddc533168"
 
 [[projects]]
+  name = "github.com/heketi/heketi"
+  packages = ["client/api/go-client","pkg/glusterfs/api","pkg/utils"]
+  revision = "bdf9128e2b7e9a66e89c0cfa5132c7328a1fa7fd"
+  version = "v8.0.0"
+
+[[projects]]
   name = "github.com/hpcloud/tail"
   packages = [".","ratelimiter","util","watch","winfile"]
   revision = "a30252cb686a21eb2d0b98132633053ec2f7f1e5"
@@ -143,6 +161,12 @@
   name = "github.com/kubernetes-csi/drivers"
   packages = ["pkg/csi-common"]
   revision = "5fa2f162efc3c2e72c423cc355164b9621f1dda8"
+
+[[projects]]
+  name = "github.com/lpabon/godbc"
+  packages = ["."]
+  revision = "432535de9415f4e0333804357bcdf9024bf5748b"
+  version = "v1.0"
 
 [[projects]]
   name = "github.com/magiconair/properties"
@@ -400,6 +424,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "976e907708df16c3749c5306d05eaa63153f096b45f102165ec0c7b891882447"
+  inputs-digest = "4c6fe6b10b40767997198918357ad05c7898608dfa4d65bd7921dce1b5a2ba86"
   solver-name = "gps-cdcl"
   solver-version = 1
