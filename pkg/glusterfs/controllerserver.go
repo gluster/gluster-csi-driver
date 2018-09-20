@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
@@ -53,17 +54,77 @@ type ProvisionerConfig struct {
 	csiConf  *CsiDrvParam
 }
 
+func convertVolumeParam(volumeString string) (int, error) {
+
+	count, err := strconv.Atoi(volumeString)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse volumestring %q: %v", volumeString, err)
+	}
+
+	if count < 0 {
+		return 0, fmt.Errorf("negative values are not allowed")
+	}
+	return count, nil
+}
+
 // ParseCreateVolRequest parse incoming volume create request and fill ProvisionerConfig.
 func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) (*ProvisionerConfig, error) {
 
 	var reqConf ProvisionerConfig
 	var gdReq api.VolCreateReq
-
+	parseVolumeType := ""
 	reqConf.gdVolReq = &gdReq
 
 	// Get Volume name
 	if req != nil {
 		reqConf.gdVolReq.Name = req.Name
+	}
+
+	for k, v := range req.GetParameters() {
+		switch strings.ToLower(k) {
+		case "volumetype":
+			if len(v) != 0 {
+				parseVolumeType = v
+			}
+		default:
+			return nil, fmt.Errorf("invalid option %q given for glusterfs CSI driver %s", k, glusterfsCSIDriverName)
+		}
+	}
+
+	if len(parseVolumeType) != 0 {
+		parseVolumeTypeInfo := strings.Split(parseVolumeType, ":")
+		switch parseVolumeTypeInfo[0] {
+
+		case "replicate":
+			if len(parseVolumeTypeInfo) >= 2 {
+				newReplicaCount, err := convertVolumeParam(parseVolumeTypeInfo[1])
+				if err != nil {
+					return nil, fmt.Errorf("error parsing volumeType %q: %s", parseVolumeTypeInfo[1], err)
+				}
+				reqConf.gdVolReq.ReplicaCount = newReplicaCount
+			} else {
+				reqConf.gdVolReq.ReplicaCount = defaultReplicaCount
+
+			}
+		case "disperse":
+			if len(parseVolumeTypeInfo) >= 3 {
+				newDisperseData, err := convertVolumeParam(parseVolumeTypeInfo[1])
+				if err != nil {
+					return nil, fmt.Errorf("error parsing volumeType %q: %s", parseVolumeTypeInfo[1], err)
+				}
+				newDisperseRedundancy, err := convertVolumeParam(parseVolumeTypeInfo[2])
+				if err != nil {
+					return nil, fmt.Errorf("error parsing volumeType %q: %s", parseVolumeTypeInfo[2], err)
+				}
+				reqConf.gdVolReq.DisperseDataCount = newDisperseData
+				reqConf.gdVolReq.DisperseRedundancyCount = newDisperseRedundancy
+			} else {
+				reqConf.gdVolReq.DisperseCount = 1
+			}
+		default:
+			return nil, fmt.Errorf("invalid option %q for glusterfs CSI driver %s", parseVolumeTypeInfo[0], glusterfsCSIDriverName)
+		}
+
 	}
 	return &reqConf, nil
 }
