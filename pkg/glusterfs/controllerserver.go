@@ -50,7 +50,7 @@ type CsiDrvParam struct {
 // ProvisionerConfig is the combined configuration of gluster cli vol create request and CSI driver specific input
 type ProvisionerConfig struct {
 	gdVolReq *api.VolCreateReq
-	csiConf  *CsiDrvParam
+	//csiConf  *CsiDrvParam
 }
 
 // ParseCreateVolRequest parse incoming volume create request and fill ProvisionerConfig.
