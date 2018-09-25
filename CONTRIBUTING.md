@@ -9,7 +9,7 @@ know about.
 
 ## The Basics
 
-### New to Go
+### New to Go programming
 
 gluster-csi-driver is primarily written in Go and if you are new to the
 language, it is *highly* encouraged you take [A Tour of
