@@ -1,10 +1,8 @@
 # Copyright 2018 The Gluster CSI Authors.
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-#You may obtain a copy of the License at
-
-#    http://www.apache.org/licenses/LICENSE-2.0
+# Licensed under GNU LESSER GENERAL PUBLIC LICENSE Version 3, 29 June 2007
+# You may obtain a copy of the License at
+#    https://opensource.org/licenses/lgpl-3.0.html
 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
