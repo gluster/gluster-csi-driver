@@ -44,9 +44,10 @@ script:
   - make vendor-install
   # Lint golang sources
   - >
-    gometalinter -j4 --sort=path --sort=line --sort=column
+    gometalinter -j1 --sort=path --sort=line --sort=column
     --exclude="method NodeGetId should be NodeGetID"
-    --deadline 1h --vendor ./...
+    --deadline 9m --vendor --debug ./...
+    |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'
   # Build the code & run tests
   - make
   - make test
