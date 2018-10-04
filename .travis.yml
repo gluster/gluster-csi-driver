@@ -19,9 +19,9 @@ env:
 go:
   # Kubernetes minimum_go_version can be found in this file:
   # https://github.com/kubernetes/kubernetes/blob/master/hack/lib/golang.sh
-  - master
   - stable
-  - "1.9.4"  # used by CentOS 7.5.1804
+  - "1.10.x"  # used by OCP releases
+  - "1.9.4"   # used by CentOS 7.5.1804
 
 install:
   - gem install asciidoctor mdl
