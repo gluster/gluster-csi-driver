@@ -7,13 +7,13 @@ metadata:
     name: redis
 spec:
   containers:
-  - name: redis
-    image: redis
-    imagePullPolicy: IfNotPresent
-    volumeMounts:
-    - mountPath: "/mnt/gluster"
-      name: glusterfscsivol
+    - name: redis
+      image: redis
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/mnt/gluster"
+          name: glusterfscsivol
   volumes:
-  - name: glusterfscsivol
-    persistentVolumeClaim:
-      claimName: glusterfs-csi-pv
+    - name: glusterfscsivol
+      persistentVolumeClaim:
+        claimName: glusterfs-csi-pv

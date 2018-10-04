@@ -6,8 +6,7 @@ GOBINDIR=$GOPATH/bin
 install_dep() {
   DEPVER="v0.5.0"
   DEPURL="https://github.com/golang/dep/releases/download/${DEPVER}/dep-linux-amd64"
-  type dep >/dev/null 2>&1
-  if [ $? -eq 0 ]; then
+  if type dep >/dev/null 2>&1; then
     local version
     version=$(dep version | awk '/^ version/{print $3}')
     if [[ $version == "$DEPVER" || $version >  $DEPVER ]]; then
@@ -27,8 +26,7 @@ install_gometalinter() {
   LINTER_TARBALL="gometalinter-${LINTER_VER}-linux-amd64.tar.gz"
   LINTER_URL="https://github.com/alecthomas/gometalinter/releases/download/v${LINTER_VER}/${LINTER_TARBALL}"
 
-  type gometalinter >/dev/null 2>&1
-  if [ $? -eq 0 ]; then
+  if type gometalinter >/dev/null 2>&1; then
     echo "gometalinter already installed"
     return
   fi

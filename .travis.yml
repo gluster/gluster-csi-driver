@@ -1,0 +1,55 @@
+---
+sudo: true
+
+addons:
+  apt:
+    packages:
+      - docker-ce
+      - python
+      - realpath
+      - ruby
+
+language: go
+
+env:
+  global:
+    - GO_METALINTER_VERSION="v2.0.11"
+    - GLUSTERFS_CSI_DOCKERFILE="pkg/glusterfs/Dockerfile"
+
+go:
+  # Kubernetes minimum_go_version can be found in this file:
+  # https://github.com/kubernetes/kubernetes/blob/master/hack/lib/golang.sh
+  - master
+  - stable
+  - "1.9.4"  # used by CentOS 7.5.1804
+
+install:
+  - gem install asciidoctor mdl
+  - pip install --user --upgrade pip
+  - pip install --user yamllint
+  # install dep
+  - >
+    curl -L
+    https://raw.githubusercontent.com/golang/dep/master/install.sh
+    | sh
+  # install gometalinter
+  - >
+    curl -L
+    'https://raw.githubusercontent.com/alecthomas/gometalinter/master/scripts/install.sh'
+    | bash -s -- -b ${TRAVIS_HOME}/gopath/bin "${GO_METALINTER_VERSION}"
+
+script:
+  # Lint text-like files
+  - scripts/pre-commit.sh --require-all
+  - make vendor-install
+  # Lint golang sources
+  - >
+    gometalinter -j4 --sort=path --sort=line --sort=column
+    --exclude="method NodeGetId should be NodeGetID"
+    --deadline 1h --vendor ./...
+  # Build the code & run tests
+  - make
+  - make test
+  # Build container w/ Docker
+  - docker version
+  - docker build -t gluster-csi-driver -f "${GLUSTERFS_CSI_DOCKERFILE}" .

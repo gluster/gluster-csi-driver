@@ -18,7 +18,7 @@ func (is *IdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginI
 		Name:          glusterfsCSIDriverName,
 		VendorVersion: glusterfsCSIDriverVersion,
 	}
-	glog.V(1).Infof("%+v, plugininfo response: %+v", resp)
+	glog.V(1).Infof("Plugininfo response: %+v", resp)
 	return resp, nil
 }
 

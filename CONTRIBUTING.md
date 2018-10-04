@@ -4,33 +4,38 @@ Want to help the gluster-csi-driver project? This document covers some of the
 policies and preferences contributors to the project need to
 know about.
 
-* [The Basics](#the-basics)
-* [Contributor's Workflow](#contributors-workflow)
+- [The Basics](#the-basics)
+- [Contributor's Workflow](#contributors-workflow)
 
 ## The Basics
 
-### New to Go?
+### New to Go programming
 
-gluster-csi-driver is primarily written in Go and if you are new to the language, it is *highly* encouraged you take [A Tour of Go](http://tour.golang.org/welcome/1).
+gluster-csi-driver is primarily written in Go and if you are new to the
+language, it is *highly* encouraged you take [A Tour of
+Go](http://tour.golang.org/welcome/1).
 
-### New to GitHub?
+### New to GitHub
 
-If you are new to the GitHub process, please see https://guides.github.com/introduction/flow/index.html.
+If you are new to the GitHub process, please see
+[Understanding the GitHub flow](https://guides.github.com/introduction/flow/index.html).
 
 ### Getting Started
 
 1. Fork the gluster-csi-project GitHub project
-2. Download latest Go to your system
-3. Setup your [GOPATH](http://www.g33knotes.org/2014/07/60-second-count-down-to-go.html) environment
-4. Type: `mkdir -p $GOPATH/src/github.com/gluster`
-5. Type: `cd $GOPATH/src/github.com/gluster`
-6. Type: `git clone https://github.com/gluster/gluster-csi-driver.git`
-7. Type: `cd gluster-csi-driver`
+1. Download latest Go to your system
+1. Setup your
+   [GOPATH](http://www.g33knotes.org/2014/07/60-second-count-down-to-go.html)
+   environment
+1. Type: `mkdir -p $GOPATH/src/github.com/gluster`
+1. Type: `cd $GOPATH/src/github.com/gluster`
+1. Type: `git clone https://github.com/gluster/gluster-csi-driver.git`
+1. Type: `cd gluster-csi-driver`
 
 Now you need to setup your repo where you will be pushing your changes into:
 
 1. `git remote add <rname> <your-github-fork>`
-2. `git fetch <rname>`
+1. `git fetch <rname>`
 
 Where `<rname>` is a remote name of your choosing and `<your-github-fork>`
 is a git URL that you can both pull from and push to.
@@ -51,9 +56,9 @@ origin  https://gluster/gluster-csi-driver (push)
 To build the gluster-csi-driver, type `make`
 from the top of the gluster-csi-driver source tree.
 
-gluster-csi-driver comes with a suite of module and unit tests. To run the suite of
-code quality checks, unit tests run `make test` from the top
-of the gluster-csi-driver source tree.
+gluster-csi-driver comes with a suite of module and unit tests. To run the
+suite of code quality checks, unit tests run `make test` from the top of the
+gluster-csi-driver source tree.
 
 ## Contributor's Workflow
 
@@ -71,8 +76,8 @@ already done some analysis or even started a patch for your topic...
 In this example, we will work on a patch called *hellopatch*:
 
 1. `git checkout master`
-2. `git pull`
-3. `git checkout -b hellopatch`
+1. `git pull`
+1. `git checkout -b hellopatch`
 
 Do your work here and then commit it. For example, run `git commit -as`,
 to automatically include all your outstanding changes into a new
@@ -128,9 +133,9 @@ before submitting your changes for review.
 
 #### Basic Tests
 
-As mentioned in the section above gluster-csi-driver has a suite of quality checks and
-unit tests that should always be run before submitting a change to the
-project. The simplest way to run this suite is to run `make test` in the
+As mentioned in the section above gluster-csi-driver has a suite of quality
+checks and unit tests that should always be run before submitting a change to
+the project. The simplest way to run this suite is to run `make test` in the
 top of the source tree.
 
 Sometimes it may not make sense to run the entire suite, especially if you
@@ -145,9 +150,9 @@ go test -v github.com/gluster/gluster-csi-driver/pkg/glusterfs
 
 ### Pull Requests
 
-Once you are satisfied with your changes you can push them to your gluster-csi-driver fork
-on GitHub. For example, `git push github hellopatch` will push the contents
-of your hellopatch branch to your fork.
+Once you are satisfied with your changes you can push them to your
+gluster-csi-driver fork on GitHub. For example, `git push github hellopatch`
+will push the contents of your hellopatch branch to your fork.
 
 Now that the patch or patches are available on GitHub you can use the GitHub
 interface to create a pull request (PR). If you are submitting a single patch
@@ -176,8 +181,8 @@ discussion will occur and changes may be requested.
 
 You will need to return to your local clone and work through the changes
 as requested. You may end up with multiple changes across multiple commits.
-The gluster-csi-driver project developers prefer a linear history where each change is
-a clear logical unit. This means you will generally expect to rebase
+The gluster-csi-driver project developers prefer a linear history where each
+change is a clear logical unit. This means you will generally expect to rebase
 your changes.
 
 Run `git rebase -i master` and you will be presented with output something
