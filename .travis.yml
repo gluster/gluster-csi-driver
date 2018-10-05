@@ -19,9 +19,9 @@ env:
 go:
   # Kubernetes minimum_go_version can be found in this file:
   # https://github.com/kubernetes/kubernetes/blob/master/hack/lib/golang.sh
-  - master
   - stable
-  - "1.9.4"  # used by CentOS 7.5.1804
+  - "1.10.x"  # used by OCP releases
+  - "1.9.4"   # used by CentOS 7.5.1804
 
 install:
   - gem install asciidoctor mdl
@@ -44,9 +44,10 @@ script:
   - make vendor-install
   # Lint golang sources
   - >
-    gometalinter -j4 --sort=path --sort=line --sort=column
+    gometalinter -j1 --sort=path --sort=line --sort=column
     --exclude="method NodeGetId should be NodeGetID"
-    --deadline 1h --vendor ./...
+    --deadline 9m --vendor --debug ./...
+    |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'
   # Build the code & run tests
   - make
   - make test
