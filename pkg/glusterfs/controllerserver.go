@@ -368,14 +368,10 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}
 	var entries []*csi.ListVolumesResponse_Entry
 	for _, vol := range volumes {
-		v, e := cs.client.VolumeStatus(vol.Name)
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get volume status %s", e.Error())
-		}
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
 				Id:            vol.Name,
-				CapacityBytes: (int64(v.Size.Capacity)) * utils.MB,
+				CapacityBytes: (int64(vol.Capacity)) * utils.MB,
 			},
 		})
 	}
