@@ -1,5 +1,6 @@
 # gluster-csi-driver
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/gluster/gluster-csi-driver)](https://goreportcard.com/report/github.com/gluster/gluster-csi-driver)
 [![Build Status](https://ci.centos.org/view/Gluster/job/gluster_csi-driver-smoke/badge/icon)](https://ci.centos.org/view/Gluster/job/gluster_csi-driver-smoke/)
 
 This repo contains CSI driver for Gluster. The Container Storage Interface
