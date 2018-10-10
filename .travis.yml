@@ -44,6 +44,7 @@ script:
   - make vendor-install
   # Lint golang sources
   - >
+    set -o pipefail;
     gometalinter -j1 --sort=path --sort=line --sort=column
     --exclude="method NodeGetId should be NodeGetID"
     --deadline 9m --vendor --debug ./...
