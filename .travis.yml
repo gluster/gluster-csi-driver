@@ -14,14 +14,11 @@ language: go
 env:
   global:
     - GO_METALINTER_VERSION="v2.0.11"
-    - GLUSTERFS_CSI_DOCKERFILE="pkg/glusterfs/Dockerfile"
 
 go:
   # Kubernetes minimum_go_version can be found in this file:
   # https://github.com/kubernetes/kubernetes/blob/master/hack/lib/golang.sh
   - stable
-  - "1.10.x"  # used by OCP releases
-  - "1.11.x"   # used by kubernetes master
 
 install:
   - gem install asciidoctor mdl
@@ -41,7 +38,8 @@ install:
 script:
   # Lint text-like files
   - scripts/pre-commit.sh --require-all
-  - make vendor-install
+  # Fetch vendor dependencies so linters succeed
+  - dep ensure -v -vendor-only
   # Lint golang sources
   - >
     set -o pipefail;
@@ -49,9 +47,6 @@ script:
     --exclude="method NodeGetId should be NodeGetID"
     --deadline 9m --vendor --debug ./...
     |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'
-  # Build the code & run tests
-  - make
-  - make test
   # Build container w/ Docker
   - docker version
-  - docker build -t gluster-csi-driver -f "${GLUSTERFS_CSI_DOCKERFILE}" .
+  - ./build.sh

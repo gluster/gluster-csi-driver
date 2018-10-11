@@ -36,6 +36,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glust
 # Ensure the binary is statically linked
 RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
 
+# Run tests
+RUN ./test/100-gotest.sh
+
 
 #-- Final container
 FROM centos:7.5.1804
