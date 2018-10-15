@@ -44,6 +44,7 @@ script:
   - >
     set -o pipefail;
     gometalinter -j1 --sort=path --sort=line --sort=column
+    --enable="gofmt"
     --exclude="method NodeGetId should be NodeGetID"
     --deadline 9m --vendor --debug ./...
     |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'
