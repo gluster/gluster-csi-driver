@@ -27,6 +27,10 @@
   name = "github.com/docker/distribution"
 
 [[override]]
+  branch = "release-branch.go1.10"
+  name = "golang.org/x/net"
+
+[[override]]
   name = "github.com/pborman/uuid"
   version = "1.1.0"
 
@@ -39,15 +43,15 @@
   version = "1.10.0"
 
 [[override]]
-  version = "kubernetes-1.10.0-beta.1"
+  version = "kubernetes-1.12.0"
   name = "k8s.io/apimachinery"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "v1.10.0-beta.1"
+  version = "v1.12.0"
 
 [[override]]
-  version = "kubernetes-1.10.0-beta.1"
+  version = "kubernetes-1.12.0"
   name = "k8s.io/api"
 
 [[override]]
