@@ -33,7 +33,7 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 // NodePublishVolume mounts the volume mounted to the staging path to the target path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	glog.V(2).Infof("Request received %+v", req)
+	glog.V(2).Infof("received node publish volume request %+v", req)
 
 	if err := ns.validateNodePublishVolumeReq(req); err != nil {
 		return nil, err
@@ -119,14 +119,14 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	notMnt, err := glusterMounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, status.Error(codes.NotFound, "Targetpath not found")
+			return nil, status.Error(codes.NotFound, "targetpath not found")
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 
 	}
 
 	if notMnt {
-		return nil, status.Error(codes.NotFound, "Volume not mounted")
+		return nil, status.Error(codes.NotFound, "volume not mounted")
 	}
 
 	err = util.UnmountPath(req.GetTargetPath(), glusterMounter)
