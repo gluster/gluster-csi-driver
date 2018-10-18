@@ -24,6 +24,11 @@ RUN yum install -y \
 RUN mkdir -p /go/bin
 RUN curl -L https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
+# Install gometalinter
+ARG GO_METALINTER_VERSION=v2.0.11
+RUN curl -L 'https://raw.githubusercontent.com/alecthomas/gometalinter/master/scripts/install.sh' \
+    | bash -s -- -b "${GOPATH}bin" "${GO_METALINTER_VERSION}"
+
 # Vendor dependencies
 COPY Gopkg.lock Gopkg.toml "${SRCDIR}"
 WORKDIR "${SRCDIR}"
@@ -37,7 +42,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glust
 RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
 
 # Run tests
-RUN ./test/100-gotest.sh
+ARG RUN_TESTS=1
+RUN [ $RUN_TESTS -eq 0 ] || { \
+      set -o pipefail \
+      && gometalinter -j4 --sort=path --sort=line --sort=column \
+      --enable="gofmt" \
+      --exclude="method NodeGetId should be NodeGetID" \
+      --deadline 9m --vendor --debug ./... \
+      |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'; \
+    }
+RUN [ $RUN_TESTS -eq 0 ] || ./test/100-gotest.sh
 
 
 #-- Final container
