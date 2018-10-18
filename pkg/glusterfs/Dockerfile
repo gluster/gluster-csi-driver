@@ -51,7 +51,10 @@ RUN [ $RUN_TESTS -eq 0 ] || { \
       --deadline 9m --vendor --debug ./... \
       |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'; \
     }
-RUN [ $RUN_TESTS -eq 0 ] || ./test/100-gotest.sh
+RUN [ $RUN_TESTS -eq 0 ] || { \
+      GOPACKAGES="$(go list ./... | grep -v vendor | grep -v e2e)"; \
+      go test -covermode=count -coverprofile=/profile.cov $GOPACKAGES; \
+    }
 
 
 #-- Final container

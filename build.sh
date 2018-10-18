@@ -11,6 +11,7 @@ RUN_TESTS=${RUN_TESTS:-1}
 VERSION="$(git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')"
 BUILDDATE="$(date -u '+%Y-%m-%dT%H:%M:%S.%NZ')"
 
+#-- Build final container
 $DOCKER_CMD build \
         -t glusterfs-csi-driver \
         --build-arg RUN_TESTS="$RUN_TESTS" \
