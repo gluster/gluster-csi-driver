@@ -3,13 +3,16 @@ package glusterfs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/gluster/glusterd2/pkg/api"
+	gd2Error "github.com/gluster/glusterd2/pkg/errors"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -77,16 +80,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	glog.V(1).Infof("creating volume with name %s", req.Name)
 
-	if reqCaps := req.GetVolumeCapabilities(); reqCaps == nil {
-		return nil, status.Error(codes.InvalidArgument, "volume capabilities is a required field")
-	}
-
-	// If capacity mentioned, pick that or use default size 1 GB
-	volSizeBytes := defaultVolumeSize
-	if capRange := req.GetCapacityRange(); capRange != nil {
-		volSizeBytes = capRange.GetRequiredBytes()
-	}
-
+	volSizeBytes := cs.getVolumeSize(req)
 	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
 	// parse the request.
@@ -103,11 +97,29 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			glog.Errorf("error checking for pre-existing volume: %v", err)
 			return nil, err
 		}
-		// If volume does not exist, provision volume
-		err = cs.doVolumeCreate(volumeName, volSizeMB)
-		if err != nil {
-			return nil, err
+
+		if req.VolumeContentSource.GetSnapshot().GetId() != "" {
+			snapName := req.VolumeContentSource.GetSnapshot().GetId()
+			glog.V(2).Infof("creating volume from snapshot %s", snapName)
+			err = cs.checkExistingSnapshot(snapName, req.GetName())
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// If volume does not exist, provision volume
+			err = cs.doVolumeCreate(volumeName, volSizeMB)
+			if err != nil {
+				return nil, err
+			}
 		}
+	}
+	err = cs.client.VolumeStart(volumeName, true)
+	if err != nil {
+		//we dont need to delete the volume if volume start fails
+		//as we are listing the volumes and starting it again
+		//before sending back the response
+		glog.Errorf("failed to start volume: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
 	}
 
 	glusterServer, bkpServers, err := cs.getClusterNodes()
@@ -130,6 +142,53 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	glog.V(4).Infof("CSI volume response: %+v", resp)
 	return resp, nil
+}
+
+func (cs *ControllerServer) getVolumeSize(req *csi.CreateVolumeRequest) int64 {
+	// If capacity mentioned, pick that or use default size 1 GB
+	volSizeBytes := defaultVolumeSize
+	if capRange := req.GetCapacityRange(); capRange != nil {
+		volSizeBytes = capRange.GetRequiredBytes()
+	}
+	return volSizeBytes
+}
+
+func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) error {
+	snapInfo, err := cs.GfDriver.client.SnapshotInfo(snapName)
+	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of No route to host error
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return status.Errorf(codes.NotFound, "failed to get snapshot info %s", err.Error())
+		}
+		return status.Error(codes.Internal, err.Error())
+	}
+
+	if snapInfo.VolInfo.State != api.VolStarted {
+		actReq := api.SnapActivateReq{
+			Force: true,
+		}
+		err = cs.client.SnapshotActivate(actReq, snapName)
+		if err != nil {
+			glog.Errorf("failed to activate snapshot: %v", err)
+			return status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
+		}
+	}
+	//create snapshot clone
+	err = cs.createSnapshotClone(snapName, volName)
+	return err
+}
+
+func (cs *ControllerServer) createSnapshotClone(snapName, volName string) error {
+	var snapreq api.SnapCloneReq
+	snapreq.CloneName = volName
+	snapResp, err := cs.client.SnapshotClone(snapName, snapreq)
+	if err != nil {
+		glog.Errorf("failed to create volume clone: %v", err)
+		return status.Errorf(codes.Internal, "failed to create volume clone: %s", err.Error())
+	}
+	glog.V(1).Infof("snapshot clone response : %+v", snapResp)
+	return nil
 }
 
 func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest) error {
@@ -167,15 +226,6 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) err
 	}
 
 	glog.V(3).Infof("volume create response : %+v", volumeCreateResp)
-	err = cs.client.VolumeStart(volumeName, true)
-	if err != nil {
-		//we dont need to delete the volume if volume start fails
-		//as we are listing the volumes and starting it again
-		//before sending back the response
-		glog.Errorf("failed to start volume: %v", err)
-		return status.Errorf(codes.Internal, "failed to start volume: %v", err)
-	}
-
 	return nil
 }
 
@@ -264,8 +314,10 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		glog.Errorf("failed to stop volume %s: %v", volumeID, err)
-		return nil, status.Errorf(codes.Internal, "failed to stop volume %s: %v", volumeID, err)
+		if err.Error() != gd2Error.ErrVolAlreadyStopped.Error() {
+			glog.Errorf("failed to stop volume %s: %v", volumeID, err)
+			return nil, status.Errorf(codes.Internal, "failed to stop volume %s: %v", volumeID, err)
+		}
 	}
 
 	// Delete volume
@@ -392,6 +444,8 @@ func (cs *ControllerServer) ControllerGetCapabilities(ctx context.Context, req *
 	for _, cap := range []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+		csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
 	} {
 		caps = append(caps, newCap(cap))
 	}
@@ -405,15 +459,244 @@ func (cs *ControllerServer) ControllerGetCapabilities(ctx context.Context, req *
 
 // CreateSnapshot create snapshot of an existing PV
 func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+
+	if err := cs.validateCreateSnapshotReq(req); err != nil {
+		return nil, err
+	}
+	glog.V(2).Infof("received request to create snapshot %v from volume %v", req.GetName(), req.GetSourceVolumeId())
+
+	snapInfo, err := cs.GfDriver.client.SnapshotInfo(req.Name)
+	if err != nil {
+		glog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of No route to host error
+		if errResp != nil && errResp.StatusCode != http.StatusNotFound {
+
+			return nil, status.Errorf(codes.Internal, "CreateSnapshot - failed to get snapshot info %s", err.Error())
+		}
+		if errResp == nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+	} else {
+
+		if snapInfo.ParentVolName != req.GetSourceVolumeId() {
+			glog.Errorf("snapshot %v belongs to different volume %v", req.GetName(), snapInfo.ParentVolName)
+			return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot - snapshot %s belongs to different volume %s", snapInfo.ParentVolName, req.GetSourceVolumeId())
+		}
+
+		return &csi.CreateSnapshotResponse{
+			Snapshot: &csi.Snapshot{
+				Id:             snapInfo.VolInfo.Name,
+				SourceVolumeId: snapInfo.ParentVolName,
+				CreatedAt:      snapInfo.CreatedAt.Unix(),
+				SizeBytes:      (int64(snapInfo.VolInfo.Capacity)) * utils.MB,
+				Status: &csi.SnapshotStatus{
+					Type: csi.SnapshotStatus_READY,
+				},
+			},
+		}, nil
+	}
+
+	snapReq := api.SnapCreateReq{
+		VolName:  req.SourceVolumeId,
+		SnapName: req.Name,
+		Force:    true,
+	}
+	glog.V(2).Infof("snapshot request: %+v", snapReq)
+	snapResp, err := cs.client.SnapshotCreate(snapReq)
+	if err != nil {
+		glog.Errorf("failed to create snapshot %v", err)
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot - snapshot create failed %s", err.Error())
+	}
+
+	actReq := api.SnapActivateReq{
+		Force: true,
+	}
+	err = cs.client.SnapshotActivate(actReq, req.Name)
+	if err != nil {
+		glog.Errorf("failed to activate snapshot %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
+	}
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			Id:             snapResp.VolInfo.Name,
+			SourceVolumeId: snapResp.ParentVolName,
+			CreatedAt:      snapResp.CreatedAt.Unix(),
+			SizeBytes:      (int64(snapResp.VolInfo.Capacity)) * utils.MB,
+			Status: &csi.SnapshotStatus{
+				Type: csi.SnapshotStatus_READY,
+			},
+		},
+	}, nil
+}
+
+func (cs *ControllerServer) validateCreateSnapshotReq(req *csi.CreateSnapshotRequest) error {
+	if req == nil {
+		return status.Errorf(codes.InvalidArgument, "CreateSnapshot request is nil")
+	}
+	if req.GetName() == "" {
+		return status.Error(codes.InvalidArgument, "CreateSnapshot - name cannot be nil")
+	}
+
+	if req.GetSourceVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "CreateSnapshot - sourceVolumeId is nil")
+	}
+	if req.GetName() == req.GetSourceVolumeId() {
+		//In glusterd2 we cannot create a snapshot as same name as volume name
+		return status.Error(codes.InvalidArgument, "CreateSnapshot - sourceVolumeId  and snapshot name cannot be same")
+	}
+	return nil
 }
 
 // DeleteSnapshot delete provided snapshot of a PV
 func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	if req == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "DeleteSnapshot request is nil")
+	}
+	if req.GetSnapshotId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot - snapshotId is empty")
+	}
+	glog.V(4).Infof("deleting snapshot %s", req.GetSnapshotId())
+
+	err := cs.client.SnapshotDeactivate(req.GetSnapshotId())
+	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return &csi.DeleteSnapshotResponse{}, nil
+		}
+
+		if err.Error() != gd2Error.ErrSnapDeactivated.Error() {
+			glog.Errorf("failed to deactivate snapshot %v", err)
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot - failed to deactivate snapshot %s", err.Error())
+		}
+
+	}
+	err = cs.client.SnapshotDelete(req.SnapshotId)
+	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			return &csi.DeleteSnapshotResponse{}, nil
+		}
+		glog.Errorf("failed to delete snapshot %v", err)
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot - failed to delete snapshot %s", err.Error())
+	}
+	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 // ListSnapshots list the snapshots of a PV
 func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	var (
+		snaplist   api.SnapListResp
+		err        error
+		startToken int32
+	)
+	if req.GetStartingToken() != "" {
+		i, parseErr := strconv.ParseUint(req.StartingToken, 10, 32)
+		if parseErr != nil {
+			return nil, status.Errorf(codes.Aborted, "invalid starting token %s", parseErr.Error())
+		}
+		startToken = int32(i)
+	}
+
+	if len(req.GetSnapshotId()) != 0 {
+		return cs.listSnapshotFromID(req.GetSnapshotId())
+	}
+
+	//If volume id is sent
+	if len(req.GetSourceVolumeId()) != 0 {
+		snaplist, err = cs.client.SnapshotList(req.SourceVolumeId)
+		if err != nil {
+			errResp := cs.client.LastErrorResponse()
+			if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+				resp := csi.ListSnapshotsResponse{}
+				return &resp, nil
+			}
+			glog.Errorf("failed to list snapshots %v", err)
+			return nil, status.Errorf(codes.Internal, "ListSnapshot - failed to get snapshots %s", err.Error())
+		}
+	} else {
+		//Get all snapshots
+		snaplist, err = cs.client.SnapshotList("")
+		if err != nil {
+			glog.Errorf("failed to list snapshots %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to get snapshots %s", err.Error())
+		}
+	}
+
+	return cs.doPagination(req, snaplist, startToken)
+}
+
+func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshotsResponse, error) {
+	var entries []*csi.ListSnapshotsResponse_Entry
+	snap, err := cs.GfDriver.client.SnapshotInfo(snapID)
+	if err != nil {
+		errResp := cs.client.LastErrorResponse()
+		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
+			resp := csi.ListSnapshotsResponse{}
+			return &resp, nil
+		}
+		glog.Errorf("failed to get snapshot info %v", err)
+		return nil, status.Errorf(codes.NotFound, "ListSnapshot - failed to get snapshot info %s", err.Error())
+
+	}
+	entries = append(entries, &csi.ListSnapshotsResponse_Entry{
+		Snapshot: &csi.Snapshot{
+			Id:             snap.VolInfo.Name,
+			SourceVolumeId: snap.ParentVolName,
+			CreatedAt:      snap.CreatedAt.Unix(),
+			SizeBytes:      (int64(snap.VolInfo.Capacity)) * utils.MB,
+			Status: &csi.SnapshotStatus{
+				Type: csi.SnapshotStatus_READY,
+			},
+		},
+	})
+
+	resp := csi.ListSnapshotsResponse{}
+	resp.Entries = entries
+	return &resp, nil
+
+}
+func (cs *ControllerServer) doPagination(req *csi.ListSnapshotsRequest, snapList api.SnapListResp, startToken int32) (*csi.ListSnapshotsResponse, error) {
+	if req.GetStartingToken() != "" && int(startToken) > len(snapList) {
+		return nil, status.Error(codes.Aborted, "invalid starting token")
+	}
+
+	var entries []*csi.ListSnapshotsResponse_Entry
+	for _, snap := range snapList {
+		for _, s := range snap.SnapList {
+			entries = append(entries, &csi.ListSnapshotsResponse_Entry{
+				Snapshot: &csi.Snapshot{
+					Id:             s.VolInfo.Name,
+					SourceVolumeId: snap.ParentName,
+					CreatedAt:      s.CreatedAt.Unix(),
+					SizeBytes:      (int64(s.VolInfo.Capacity)) * utils.MB,
+					Status: &csi.SnapshotStatus{
+						Type: csi.SnapshotStatus_READY,
+					},
+				},
+			})
+		}
+
+	}
+
+	//TODO need to remove paginating code once  glusterd2 issue
+	//https://github.com/gluster/glusterd2/issues/372 is merged
+	var (
+		maximumEntries   = req.MaxEntries
+		nextToken        int32
+		remainingEntries = int32(len(snapList)) - startToken
+		resp             csi.ListSnapshotsResponse
+	)
+
+	if maximumEntries == 0 || maximumEntries > remainingEntries {
+		maximumEntries = remainingEntries
+	}
+
+	resp.Entries = entries[startToken : startToken+maximumEntries]
+
+	if nextToken = startToken + maximumEntries; nextToken < int32(len(snapList)) {
+		resp.NextToken = fmt.Sprintf("%d", nextToken)
+	}
+	return &resp, nil
 }
