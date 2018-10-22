@@ -23,7 +23,7 @@ const (
 
 var errVolumeNotFound = errors.New("volume not found")
 
-// ControllerServer struct of Glusterfs CSI driver with supported methods of CSI controller server spec.
+// ControllerServer struct of GlusterFS CSI driver with supported methods of CSI controller server spec.
 type ControllerServer struct {
 	*GfDriver
 }
@@ -128,7 +128,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		},
 	}
 
-	glog.V(4).Infof("CSI Volume response: %+v", resp)
+	glog.V(4).Infof("CSI volume response: %+v", resp)
 	return resp, nil
 }
 
@@ -138,18 +138,18 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 	}
 
 	if req.GetName() == "" {
-		return status.Error(codes.InvalidArgument, "Name is a required field")
+		return status.Error(codes.InvalidArgument, "name is a required field")
 	}
 
 	if reqCaps := req.GetVolumeCapabilities(); reqCaps == nil {
-		return status.Error(codes.InvalidArgument, "Volume capabilities is a required field")
+		return status.Error(codes.InvalidArgument, "volume capabilities is a required field")
 	}
 
 	return nil
 }
 
 func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) error {
-	glog.V(4).Infof("Received request to create volume %s with size %d", volumeName, volSizeMB)
+	glog.V(4).Infof("received request to create volume %s with size %d", volumeName, volSizeMB)
 	volMetaMap := make(map[string]string)
 	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
 	volumeReq := api.VolCreateReq{
@@ -193,7 +193,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 
 	// Do the owner validation
 	if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; !found || (found && glusterAnnVal != glusterfsCSIDriverName) {
-		return status.Errorf(codes.Internal, "volume %s (%s) is not owned by Gluster CSI driver",
+		return status.Errorf(codes.Internal, "volume %s (%s) is not owned by GlusterFS CSI driver",
 			vol.Info.Name, vol.Info.Metadata)
 	}
 
@@ -252,7 +252,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "volume ID is nil")
 	}
-	glog.V(2).Infof("Deleting volume with ID: %s", volumeID)
+	glog.V(2).Infof("deleting volume with ID: %s", volumeID)
 
 	// Stop volume
 	err := cs.client.VolumeStop(req.VolumeId)
@@ -342,7 +342,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	resp := &csi.ValidateVolumeCapabilitiesResponse{
 		Supported: capSupport,
 	}
-	glog.V(1).Infof("GlusterFS CSI driver volume capabilities: %v", resp)
+	glog.V(1).Infof("GlusterFS CSI driver volume capabilities: %+v", resp)
 	return resp, nil
 }
 
