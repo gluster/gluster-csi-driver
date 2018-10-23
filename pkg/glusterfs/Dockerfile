@@ -15,47 +15,40 @@
 FROM openshift/origin-release:golang-1.10 AS build
 
 ENV GOPATH="/go/" \
-    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/"
+    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
+    SCRIPTSDIR="${SRCDIR}scripts/"
 
 RUN yum install -y \
     git
 
-# Install dep
-RUN mkdir -p /go/bin
-RUN curl -L https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
-# Install gometalinter
-ARG GO_METALINTER_VERSION=v2.0.11
-RUN curl -L 'https://raw.githubusercontent.com/alecthomas/gometalinter/master/scripts/install.sh' \
-    | bash -s -- -b "${GOPATH}bin" "${GO_METALINTER_VERSION}"
+# Install go tools
+ARG GO_DEP_VERSION=
+ARG GO_METALINTER_VERSION=latest
+COPY scripts/install-go-tools.sh "${SCRIPTSDIR}"
+RUN mkdir -p /go/bin; ${SCRIPTSDIR}/install-go-tools.sh
 
 # Vendor dependencies
 COPY Gopkg.lock Gopkg.toml "${SRCDIR}"
 WORKDIR "${SRCDIR}"
 RUN /go/bin/dep ensure -v -vendor-only
 
-# Build executable
+# Copy source directory
 COPY . "${SRCDIR}"
+
+# Run tests
+ARG RUN_TESTS=1
+ARG GO_METALINTER_THREADS=1
+ENV TEST_COVERAGE=stdout \
+    GO_COVER_OUT=/profile.cov
+
+RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/lint-go.sh
+RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
+
+# Build executable
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glusterfs-csi-driver cmd/glusterfs/main.go
 
 # Ensure the binary is statically linked
 RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
-
-# Run tests
-ARG RUN_TESTS=1
-RUN [ $RUN_TESTS -eq 0 ] || { \
-      set -o pipefail \
-      && gometalinter -j4 --sort=path --sort=line --sort=column \
-      --enable="gofmt" \
-      --exclude="method NodeGetId should be NodeGetID" \
-      --deadline 9m --vendor --debug ./... \
-      |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'; \
-    }
-RUN [ $RUN_TESTS -eq 0 ] || { \
-      GOPACKAGES="$(go list ./... | grep -v vendor | grep -v e2e)"; \
-      go test -covermode=count -coverprofile=/profile.cov $GOPACKAGES; \
-    }
-
 
 #-- Final container
 FROM centos:7.5.1804
