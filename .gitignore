@@ -1,5 +1,5 @@
-# build is our output directory for go build
-build
+# go coverage data
+profile.cov
 
 # Remove any tarfiles in the repo
 *.gz

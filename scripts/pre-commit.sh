@@ -43,6 +43,7 @@ run_check '.*\.md' mdl --style scripts/mdl-style.rb
 
 # Install via: dnf install shellcheck
 run_check '.*\.(ba)?sh' shellcheck
+run_check '.*\.(ba)?sh' bash -n
 
 # Install via: pip install yamllint
 run_check '.*\.ya?ml' yamllint -s -d "{extends: default, rules: {line-length: {allow-non-breakable-inline-mappings: true}}}"

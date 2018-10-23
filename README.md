@@ -15,26 +15,27 @@ systems.
 
 ## Building GlusterFS CSI driver
 
-This repository consists of Dockerfile for GlusterFS CSI dirver to build on
-CentOS distribution. Once you clone the repository, to build the image, run the
-following command:
+This repository contains the source and a Dockerfile to build the GlusterFS CSI
+driver. The driver is built as a multi-stage container build. This requires a
+relatively recent version of Docker or Buildah.
+
+Docker packages can be obtained for
+[CentOS](https://docs.docker.com/install/linux/docker-ce/centos/),
+[Fedora](https://docs.docker.com/install/linux/docker-ce/fedora/) or other
+distributions.
+
+To build, ensure docker is installed, and run:
 
 1. Get inside the repository directory
 
 ```
-[root@localhost]#cd gluster-csi-driver
+[root@localhost]# cd gluster-csi-driver
 ```
 
-1. Compile and create a binary
+1. Build the glusterfs-csi-driver container
 
 ```
-[root@localhost]#make
-```
-
-3) Build a docker image based on the binary compiled above
-
-```
-[root@localhost]#docker build -t glusterfs-csi-driver -f pkg/glusterfs/Dockerfile .
+[root@localhost]# ./build.sh
 ```
 
 ## Testing GlusterFS CSI driver
