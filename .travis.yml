@@ -18,5 +18,4 @@ script:
   # Lint text-like files
   - scripts/lint-text.sh --require-all
   # Build container w/ Docker
-  - docker version
   - ./build.sh

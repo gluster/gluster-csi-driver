@@ -15,6 +15,10 @@ GO_DEP_VERSION="${GO_DEP_VERSION}"
 GO_METALINTER_VERSION="${GO_METALINTER_VERSION:-v2.0.11}"
 GO_METALINTER_THREADS=${GO_METALINTER_THREADS:-4}
 
+# Print Docker version
+echo "=== Docker Version ==="
+$DOCKER_CMD version
+
 # If running tests, create build container to extract profile data later
 if [ "$RUN_TESTS" -ne 0 ]; then
         rm -f profile.cov
