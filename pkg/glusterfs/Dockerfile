@@ -10,6 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The base image to use for the final images
+ARG FINAL_BASE=centos
 
 #-- Create build environment
 
@@ -60,7 +62,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glust
 RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
 
 #-- Final container
-FROM centos:7.5.1804
+
+FROM ${FINAL_BASE} AS driver
 
 # Install dependencies
 RUN yum -y install centos-release-gluster && \
