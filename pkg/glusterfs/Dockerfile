@@ -11,8 +11,9 @@
 # limitations under the License.
 
 
-#-- Build phase
-FROM openshift/origin-release:golang-1.10 AS build
+#-- Create build environment
+
+FROM openshift/origin-release:golang-1.10 AS make_env
 
 ENV GOPATH="/go/" \
     SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
@@ -32,10 +33,14 @@ COPY Gopkg.lock Gopkg.toml "${SRCDIR}"
 WORKDIR "${SRCDIR}"
 RUN /go/bin/dep ensure -v -vendor-only
 
-# Copy source directory
-COPY . "${SRCDIR}"
+# Copy source directories
+COPY cmd/ "${SRCDIR}/cmd"
+COPY pkg/ "${SRCDIR}/pkg"
+COPY scripts/ "${SCRIPTSDIR}"
 
-# Run tests
+#-- Test phase
+
+FROM make_env AS test
 ARG RUN_TESTS=1
 ARG GO_METALINTER_THREADS=1
 ENV TEST_COVERAGE=stdout \
@@ -43,6 +48,10 @@ ENV TEST_COVERAGE=stdout \
 
 RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/lint-go.sh
 RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
+
+#-- Build phase
+
+FROM test AS build
 
 # Build executable
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glusterfs-csi-driver cmd/glusterfs/main.go
