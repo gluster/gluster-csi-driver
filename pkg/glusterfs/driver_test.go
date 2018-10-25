@@ -117,12 +117,13 @@ func handleGETRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 		return
 	}
 
-	if strings.HasSuffix(r.URL.String(), "/v1/volumes") {
+	if r.URL.String() == "/v1/volumes" {
 		resp := make(api.VolumeListResp, 1)
 		resp[0] = api.VolumeGetResp{
 			ID:       id,
 			Name:     "test1",
 			Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
+			State:    api.VolStarted,
 			Capacity: 1000,
 		}
 		writeResp(w, http.StatusOK, resp, t)
@@ -132,16 +133,12 @@ func handleGETRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 
 	vol := strings.Split(strings.Trim(r.URL.String(), "/"), "/")
 	if checkVolume(vol[2]) {
-		resp := api.VolumeStatusResp{
-			Info: api.VolumeInfo{
-				ID:       id,
-				Name:     vol[2],
-				Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
-			},
-			Online: true,
-			Size: api.SizeInfo{
-				Capacity: volumeCache[vol[2]],
-			},
+		resp := api.VolumeGetResp{
+			ID:       id,
+			Name:     vol[2],
+			Metadata: map[string]string{volumeOwnerAnn: glusterfsCSIDriverName},
+			State:    api.VolStarted,
+			Capacity: volumeCache[vol[2]],
 		}
 		writeResp(w, http.StatusOK, resp, t)
 		return

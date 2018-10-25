@@ -180,7 +180,7 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) err
 }
 
 func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) error {
-	vol, err := cs.client.VolumeStatus(volumeName)
+	vol, err := cs.client.Volumes(volumeName)
 	if err != nil {
 		glog.Errorf("failed to fetch volume : %v", err)
 		errResp := cs.client.LastErrorResponse()
@@ -191,21 +191,22 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 		return status.Errorf(codes.Internal, "error in fetching volume details %v", err)
 	}
 
+	volInfo := vol[0]
 	// Do the owner validation
-	if glusterAnnVal, found := vol.Info.Metadata[volumeOwnerAnn]; !found || (found && glusterAnnVal != glusterfsCSIDriverName) {
+	if glusterAnnVal, found := volInfo.Metadata[volumeOwnerAnn]; !found || (found && glusterAnnVal != glusterfsCSIDriverName) {
 		return status.Errorf(codes.Internal, "volume %s (%s) is not owned by GlusterFS CSI driver",
-			vol.Info.Name, vol.Info.Metadata)
+			volInfo.Name, volInfo.Metadata)
 	}
 
-	if int(vol.Size.Capacity) != volSizeMB {
-		return status.Errorf(codes.AlreadyExists, "volume %s already exits with different size: %d", vol.Info.Name, vol.Size.Capacity)
+	if int(volInfo.Capacity) != volSizeMB {
+		return status.Errorf(codes.AlreadyExists, "volume %s already exits with different size: %d", volInfo.Name, volInfo.Capacity)
 	}
 
 	//volume has not started, start the volume
-	if !vol.Online {
-		err = cs.client.VolumeStart(vol.Info.Name, true)
+	if volInfo.State != api.VolStarted {
+		err = cs.client.VolumeStart(volInfo.Name, true)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to start volume %s: %v", vol.Info.Name, err)
+			return status.Errorf(codes.Internal, "failed to start volume %s: %v", volInfo.Name, err)
 		}
 	}
 
@@ -310,7 +311,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		return nil, status.Error(codes.InvalidArgument, "ValidateVolumeCapabilities() - VolumeCapabilities is nil")
 	}
 
-	_, err := cs.client.VolumeStatus(req.VolumeId)
+	_, err := cs.client.Volumes(volumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "ValidateVolumeCapabilities() - %v", err)
 	}
