@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.0.9
+
+* Added snapshot functionality.
+* Replaced volumestatus api with volumeinfo.
+* Fully contenarized build.
+* Updated vendor to point to k8s stable release.
+* Other build enhancements.
+  Humble Chirammal <hchiramm@redhat.com>
+
 ## v0.0.8
 
 * Address review comments.
