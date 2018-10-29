@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-pvc-restore
+  labels:
+    name: redis-pvc-restore
+spec:
+  containers:
+    - name: redis-pvc-restore
+      image: redis:latest
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/mnt/gluster"
+          name: glusterfscsivol
+  volumes:
+    - name: glusterfscsivol
+      persistentVolumeClaim:
+        claimName: glusterfs-pv-restore

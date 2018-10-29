@@ -61,7 +61,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:881917f48fa5cc7ea3365b03710c7526a006100fece1ab7a9abb981e3eb15a18"
+  digest = "1:ca1c3f8d5fb822ad8aa3b93f499be3501a1559ebc70207e908474cc8c33bd9b7"
   name = "github.com/gluster/glusterd2"
   packages = [
     "pkg/api",
@@ -75,7 +75,7 @@
     "plugins/glustershd/api",
   ]
   pruneopts = ""
-  revision = "73c66caf16cea5bea76a899d9d4eec82ab7bbf56"
+  revision = "428c623b4d5618a0e1bcbc4a4c317f5b526f29b5"
 
 [[projects]]
   digest = "1:6e73003ecd35f4487a5e88270d3ca0a81bc80dc88053ac7e4dcfec5fba30d918"
@@ -394,7 +394,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d1b5970f2a453e7c4be08117fb683b5d096bad9d17f119a6e58d4c561ca205dd"
+  digest = "1:117e1e4f1ed83191a4a225d23488e14802ff8f91b3ed4ff0d229e8ea0faf0a88"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
@@ -402,7 +402,7 @@
     "model",
   ]
   pruneopts = ""
-  revision = "bcb74de08d37a417cb6789eec1d6c810040f0470"
+  revision = "7e9e6cabbd393fc208072eedef99188d0ce788b6"
 
 [[projects]]
   branch = "master"
@@ -511,25 +511,25 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:235cb00e80dcf85b78a24be4bbe6c827fb28613b84037a9d524084308a849d91"
+  digest = "1:77478892c6d9d841c7997858d6287884c65b760000f29a25d7b1a6b6ada5f308"
   name = "golang.org/x/oauth2"
   packages = [
     ".",
     "internal",
   ]
   pruneopts = ""
-  revision = "c57b0facaced709681d9f90397429b9430a74754"
+  revision = "9dcd33a902f40452422c2367fefcb95b54f9f8f8"
 
 [[projects]]
   branch = "master"
-  digest = "1:2ed0bf267e44950120acd95570227e28184573ffb099bd85b529ee148e004ddb"
+  digest = "1:03a1b1f2bfb0a6b2291c4161032429b1e8a1f23cc68530ad64358f8b493ead5f"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = ""
-  revision = "fa43e7bc11baaae89f3f902b2b4d832b68234844"
+  revision = "8a28ead16f52c8aaeffbf79239b251dfdf6c4f96"
 
 [[projects]]
   digest = "1:5acd3512b047305d49e8763eef7ba423901e85d5dd2fd1e71778a0ea8de10bd4"
@@ -721,11 +721,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e52a7c580216d9bec31302d43c129e82eff62ab3790501b6553d55897ad23c6f"
+  digest = "1:5b61011f0e2204d6ced06cb2ee555973280e62c840edd88dec95263c31fffaaa"
   name = "k8s.io/apiextensions-apiserver"
   packages = ["pkg/features"]
   pruneopts = ""
-  revision = "5ca6f4b7a8c88a0318b42e3c75f1610f0d5b67b4"
+  revision = "2867844605ff2cb7086eb25e19ad86c02e3319ad"
 
 [[projects]]
   digest = "1:7aa037a4df5432be2820d164f378d7c22335e5cbba124e90e42114757ebd11ac"
@@ -784,7 +784,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8be8812f85a0baaf9608ccbe4a4b1a6ef261d086d04f3d4304602006fe1fd295"
+  digest = "1:4f24c53b785bbb0ed94d7168546454658281c3cbe070d84e319cae373f1f5e44"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/authentication/authenticator",
@@ -794,7 +794,7 @@
     "pkg/util/feature",
   ]
   pruneopts = ""
-  revision = "0deca6c827f580ebbd9cd8c2fe6fca0858313386"
+  revision = "7f6c545c2e4ff0af96d8aac792ca499ea87a92e1"
 
 [[projects]]
   digest = "1:5d4153d12c3aed2c90a94262520d2498d5afa4d692554af55e65a7c5af0bc399"
@@ -933,7 +933,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ed3b93f161228f7530bc7e8d6ffb99e4b0133268805121bebce80e24694abec5"
+  digest = "1:0c8eddb131234172e9eaf51ca81c3e9d8400ad08164f8ab2c08b963a0921bd13"
   name = "k8s.io/csi-api"
   packages = [
     "pkg/apis/csi/v1alpha1",
@@ -942,15 +942,15 @@
     "pkg/client/clientset/versioned/typed/csi/v1alpha1",
   ]
   pruneopts = ""
-  revision = "e68653451c29a6582db1f2839d5d8dda0c0a5aea"
+  revision = "ec830fab2ec0b36d37a043713f87d76e72486004"
 
 [[projects]]
   branch = "master"
-  digest = "1:7b06ff480fd71dead51f0f243b573c448c372ec086b790ec7ed4f8a78f2c1cbf"
+  digest = "1:9dbe3db0f0ba4af2e0611683abab22dfd049b96294de40ca97cda2e39e2b78c6"
   name = "k8s.io/kube-openapi"
   packages = ["pkg/util/proto"]
   pruneopts = ""
-  revision = "9dfdf9be683f61f82cda12362c44c784e0778b56"
+  revision = "90b54e673cf4f8ba61a75ad6ef90a69e8da13568"
 
 [[projects]]
   digest = "1:c8b66f8046163fd757f9fb87602e3bb181191512d31281c50c2c900046470877"
@@ -1009,14 +1009,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:551fd880288345a6652a98712012b56e21fed473b7c7bd16dc32695e2bd6537a"
+  digest = "1:946ab9d88af6d6e8fff0b083bbd39b53af5d019261c828eed4bcbc8d58f0a812"
   name = "k8s.io/utils"
   packages = [
     "exec",
     "pointer",
   ]
   pruneopts = ""
-  revision = "14b61cea4a067d0af104cea47bbf51cf100c0253"
+  revision = "4c3feeb576b06ef8fea769809bd3db5e5e78dc23"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1024,6 +1024,7 @@
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi/v0",
     "github.com/gluster/glusterd2/pkg/api",
+    "github.com/gluster/glusterd2/pkg/errors",
     "github.com/gluster/glusterd2/pkg/restclient",
     "github.com/golang/glog",
     "github.com/kubernetes-csi/csi-test/pkg/sanity",
