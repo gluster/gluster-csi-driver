@@ -10,12 +10,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The base image to use for the final images
-ARG FINAL_BASE=centos
-
 #-- Create build environment
 
-FROM openshift/origin-release:golang-1.10 AS make_env
+FROM docker.io/openshift/origin-release:golang-1.10 as build
 
 ENV GOPATH="/go/" \
     SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
@@ -42,28 +39,26 @@ COPY scripts/ "${SCRIPTSDIR}"
 
 #-- Test phase
 
-FROM make_env AS test
 ARG RUN_TESTS=1
 ARG GO_METALINTER_THREADS=1
 ENV TEST_COVERAGE=stdout \
-    GO_COVER_OUT=/profile.cov
+    GO_COVER_DIR=/build/
 
+RUN mkdir /build
 RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/lint-go.sh
 RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
 
 #-- Build phase
 
-FROM test AS build
-
 # Build executable
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glusterfs-csi-driver cmd/glusterfs/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /build/glusterfs-csi-driver cmd/glusterfs/main.go
 
 # Ensure the binary is statically linked
-RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
+RUN ldd /build/glusterfs-csi-driver | grep -q "not a dynamic executable"
 
 #-- Final container
 
-FROM ${FINAL_BASE} AS driver
+FROM docker.io/centos:7.5.1804 as final
 
 # Install dependencies
 RUN yum -y install centos-release-gluster && \
@@ -73,7 +68,7 @@ RUN yum -y install centos-release-gluster && \
     rpm -qa | grep gluster | tee /gluster-rpm-versions.txt
 
 # Copy glusterfs-csi-driver from build phase
-COPY --from=build /glusterfs-csi-driver /glusterfs-csi-driver
+COPY --from=build /build /
 
 # The version of the driver (git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')
 ARG version="(unknown)"

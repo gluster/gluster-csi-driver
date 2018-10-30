@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GOPACKAGES="$(go list ./... | grep -v vendor | grep -v e2e)"
-COVERFILE="${GO_COVER_OUT:-profile.cov}"
+COVERFILE="${GO_COVER_DIR}profile.cov"
 
 # no special options, exec to go test w/ all pkgs
 if [[ ${TEST_EXITFIRST} != "yes" && -z ${TEST_COVERAGE} ]]; then
