@@ -16,7 +16,6 @@ install:
 
 script:
   # Lint text-like files
-  - scripts/pre-commit.sh --require-all
+  - scripts/lint-text.sh --require-all
   # Build container w/ Docker
-  - docker version
   - ./build.sh

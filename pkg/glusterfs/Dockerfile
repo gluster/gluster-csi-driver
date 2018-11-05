@@ -10,55 +10,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#-- Create build environment
 
-#-- Build phase
-FROM openshift/origin-release:golang-1.10 AS build
+FROM docker.io/openshift/origin-release:golang-1.10 as build
 
 ENV GOPATH="/go/" \
-    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/"
+    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
+    SCRIPTSDIR="${SRCDIR}scripts/"
 
 RUN yum install -y \
     git
 
-# Install dep
-RUN mkdir -p /go/bin
-RUN curl -L https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
-# Install gometalinter
-ARG GO_METALINTER_VERSION=v2.0.11
-RUN curl -L 'https://raw.githubusercontent.com/alecthomas/gometalinter/master/scripts/install.sh' \
-    | bash -s -- -b "${GOPATH}bin" "${GO_METALINTER_VERSION}"
+# Install go tools
+ARG GO_DEP_VERSION=
+ARG GO_METALINTER_VERSION=latest
+COPY scripts/install-go-tools.sh "${SCRIPTSDIR}"
+RUN mkdir -p /go/bin; ${SCRIPTSDIR}/install-go-tools.sh
 
 # Vendor dependencies
 COPY Gopkg.lock Gopkg.toml "${SRCDIR}"
 WORKDIR "${SRCDIR}"
 RUN /go/bin/dep ensure -v -vendor-only
 
+# Copy source directories
+COPY cmd/ "${SRCDIR}/cmd"
+COPY pkg/ "${SRCDIR}/pkg"
+COPY scripts/ "${SCRIPTSDIR}"
+
+#-- Test phase
+
+ARG RUN_TESTS=1
+ARG GO_METALINTER_THREADS=1
+ENV TEST_COVERAGE=stdout \
+    GO_COVER_DIR=/build/
+
+RUN mkdir /build
+RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/lint-go.sh
+RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
+
+#-- Build phase
+
 # Build executable
-COPY . "${SRCDIR}"
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /glusterfs-csi-driver cmd/glusterfs/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /build/glusterfs-csi-driver cmd/glusterfs/main.go
 
 # Ensure the binary is statically linked
-RUN ldd /glusterfs-csi-driver | grep -q "not a dynamic executable"
-
-# Run tests
-ARG RUN_TESTS=1
-RUN [ $RUN_TESTS -eq 0 ] || { \
-      set -o pipefail \
-      && gometalinter -j4 --sort=path --sort=line --sort=column \
-      --enable="gofmt" \
-      --exclude="method NodeGetId should be NodeGetID" \
-      --deadline 9m --vendor --debug ./... \
-      |& stdbuf -oL awk '/linter took/ || !/^DEBUG/'; \
-    }
-RUN [ $RUN_TESTS -eq 0 ] || { \
-      GOPACKAGES="$(go list ./... | grep -v vendor | grep -v e2e)"; \
-      go test -covermode=count -coverprofile=/profile.cov $GOPACKAGES; \
-    }
-
+RUN ldd /build/glusterfs-csi-driver | grep -q "not a dynamic executable"
 
 #-- Final container
-FROM centos:7.5.1804
+
+FROM docker.io/centos:7.5.1804 as final
 
 # Install dependencies
 RUN yum -y install centos-release-gluster && \
@@ -68,7 +68,7 @@ RUN yum -y install centos-release-gluster && \
     rpm -qa | grep gluster | tee /gluster-rpm-versions.txt
 
 # Copy glusterfs-csi-driver from build phase
-COPY --from=build /glusterfs-csi-driver /glusterfs-csi-driver
+COPY --from=build /build /
 
 # The version of the driver (git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')
 ARG version="(unknown)"
