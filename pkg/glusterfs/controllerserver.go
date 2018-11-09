@@ -60,14 +60,52 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 	var reqConf ProvisionerConfig
 	var gdReq api.VolCreateReq
-
+	var err error
 	reqConf.gdVolReq = &gdReq
+
+	//Default replica count is 3
+	replicaCount := defaultReplicaCount
 
 	// Get Volume name
 	if req != nil {
 		reqConf.gdVolReq.Name = req.Name
 	}
+
+	for k, v := range req.GetParameters() {
+
+		switch strings.ToLower(k) {
+
+		case "replicas":
+			replicas := v
+			replicaCount, err = convertVolumeParam(replicas)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value %s given for %q SC parameter", v, k)
+			}
+
+		default:
+			return nil, fmt.Errorf("invalid option %s given for %s CSI driver", k, glusterfsCSIDriverName)
+		}
+	}
+
+	if replicaCount < 3 {
+		return nil, fmt.Errorf("provided storageclass parameters value '%d' for '%s' does not qualify as a supported volume type", replicaCount, "replicas")
+	}
+	gdReq.ReplicaCount = replicaCount
+
 	return &reqConf, nil
+}
+
+func convertVolumeParam(volumeString string) (int, error) {
+
+	count, err := strconv.Atoi(volumeString)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse volumestring %q: %v", volumeString, err)
+	}
+
+	if count < 0 {
+		return 0, fmt.Errorf("negative values are not allowed")
+	}
+	return count, nil
 }
 
 // CreateVolume creates and starts the volume
