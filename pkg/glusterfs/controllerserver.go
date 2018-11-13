@@ -154,7 +154,7 @@ func (cs *ControllerServer) getVolumeSize(req *csi.CreateVolumeRequest) int64 {
 }
 
 func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) error {
-	snapInfo, err := cs.GfDriver.client.SnapshotInfo(snapName)
+	snapInfo, err := cs.client.SnapshotInfo(snapName)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
 		//errResp will be nil in case of No route to host error
@@ -465,7 +465,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 	glog.V(2).Infof("received request to create snapshot %v from volume %v", req.GetName(), req.GetSourceVolumeId())
 
-	snapInfo, err := cs.GfDriver.client.SnapshotInfo(req.Name)
+	snapInfo, err := cs.client.SnapshotInfo(req.Name)
 	if err != nil {
 		glog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
 		errResp := cs.client.LastErrorResponse()
@@ -629,7 +629,7 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 
 func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshotsResponse, error) {
 	var entries []*csi.ListSnapshotsResponse_Entry
-	snap, err := cs.GfDriver.client.SnapshotInfo(snapID)
+	snap, err := cs.client.SnapshotInfo(snapID)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
