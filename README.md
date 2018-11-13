@@ -61,7 +61,7 @@ clusterrolebinding.rbac.authorization.k8s.io/glusterfs-csi-role created
 Below listed feature gates need to be enabled in kubernetes v1.12.1
 
 ```
---feature-gates=CSIPersistentVolume=true,MountPropagation=true,VolumeSnapshotDataSource=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true
+--feature-gates=VolumeSnapshotDataSource=true,CSINodeInfo=true,CSIDriverRegistry=true
 ```
 
 ### Create CSIDriverRegistry and CSINodeInfo CRD in kubernetes 1.12.1
