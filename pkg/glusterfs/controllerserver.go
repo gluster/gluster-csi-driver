@@ -22,6 +22,8 @@ const (
 	volumeOwnerAnn            = "VolumeOwner"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
+	minReplicaCount           = 1
+	maxReplicaCount           = 10
 )
 
 var errVolumeNotFound = errors.New("volume not found")
@@ -63,7 +65,6 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	var err error
 	reqConf.gdVolReq = &gdReq
 
-	//Default replica count is 3
 	replicaCount := defaultReplicaCount
 
 	// Get Volume name
@@ -77,9 +78,9 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 		case "replicas":
 			replicas := v
-			replicaCount, err = convertVolumeParam(replicas)
+			replicaCount, err = parseVolumeParamInt(replicas, minReplicaCount, maxReplicaCount)
 			if err != nil {
-				return nil, fmt.Errorf("invalid value %s given for %q SC parameter", v, k)
+				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
 
 		default:
@@ -87,24 +88,25 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 		}
 	}
 
-	if replicaCount < 3 {
-		return nil, fmt.Errorf("provided storageclass parameters value '%d' for '%s' does not qualify as a supported volume type", replicaCount, "replicas")
-	}
 	gdReq.ReplicaCount = replicaCount
 
 	return &reqConf, nil
 }
 
-func convertVolumeParam(volumeString string) (int, error) {
+func parseVolumeParamInt(valueString string, min int, max int) (int, error) {
 
-	count, err := strconv.Atoi(volumeString)
+	count, err := strconv.Atoi(valueString)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse volumestring %q: %v", volumeString, err)
+		return 0, fmt.Errorf("value '%s' must be an integer between %d and %d", valueString, min, max)
 	}
 
-	if count < 0 {
-		return 0, fmt.Errorf("negative values are not allowed")
+	if count < min {
+		return 0, fmt.Errorf("value '%s' must be >= %v", valueString, min)
 	}
+	if count > max {
+		return 0, fmt.Errorf("value '%s' must be <= %v", valueString, max)
+	}
+
 	return count, nil
 }
 
