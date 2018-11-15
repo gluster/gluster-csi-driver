@@ -22,6 +22,8 @@ const (
 	volumeOwnerAnn            = "VolumeOwner"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
+	minReplicaCount           = 1
+	maxReplicaCount           = 10
 )
 
 var errVolumeNotFound = errors.New("volume not found")
@@ -60,14 +62,52 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 	var reqConf ProvisionerConfig
 	var gdReq api.VolCreateReq
-
+	var err error
 	reqConf.gdVolReq = &gdReq
+
+	replicaCount := defaultReplicaCount
 
 	// Get Volume name
 	if req != nil {
 		reqConf.gdVolReq.Name = req.Name
 	}
+
+	for k, v := range req.GetParameters() {
+
+		switch strings.ToLower(k) {
+
+		case "replicas":
+			replicas := v
+			replicaCount, err = parseVolumeParamInt(replicas, minReplicaCount, maxReplicaCount)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
+			}
+
+		default:
+			return nil, fmt.Errorf("invalid option %s given for %s CSI driver", k, glusterfsCSIDriverName)
+		}
+	}
+
+	gdReq.ReplicaCount = replicaCount
+
 	return &reqConf, nil
+}
+
+func parseVolumeParamInt(valueString string, min int, max int) (int, error) {
+
+	count, err := strconv.Atoi(valueString)
+	if err != nil {
+		return 0, fmt.Errorf("value '%s' must be an integer between %d and %d", valueString, min, max)
+	}
+
+	if count < min {
+		return 0, fmt.Errorf("value '%s' must be >= %v", valueString, min)
+	}
+	if count > max {
+		return 0, fmt.Errorf("value '%s' must be <= %v", valueString, max)
+	}
+
+	return count, nil
 }
 
 // CreateVolume creates and starts the volume
