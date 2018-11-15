@@ -236,7 +236,8 @@ Kubernetes v1.12 introduces alpha support for volume snapshotting.
 This feature allows creating/deleting volume snapshots, and the ability
 to create new volumes from a snapshot natively using the Kubernetes API.
 
-### Write some data into already created application with PVC to verify volume clone
+To verify clone functionality work as intended,
+lets start with writing some data into already created application with PVC.
 
 ```
 [root@localhost]# kubectl exec -it redis /bin/bash
