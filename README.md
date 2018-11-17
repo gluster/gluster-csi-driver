@@ -44,10 +44,199 @@ To build, ensure docker is installed, and run:
 
 ### Deploy a GD2 gluster cluster
 
-### Deploy CSI driver
+### 1. RW0 Volume Claim (Gluster Virtual Block CSI driver)
 
 ```
-[root@localhost]#kubectl create -f csi-deployment.yaml
+[root@localhost]# cd examples/kubernetes/gluster-virtblock/
+
+[root@localhost]# kubectl create -f csi-deployment.yaml
+service/csi-attacher-glustervirtblockplugin created
+statefulset.apps/csi-attacher-glustervirtblockplugin created
+daemonset.apps/csi-nodeplugin-glustervirtblockplugin created
+service/csi-provisioner-glustervirtblockplugin created
+statefulset.apps/csi-provisioner-glustervirtblockplugin created
+serviceaccount/glustervirtblock-csi created
+clusterrole.rbac.authorization.k8s.io/glustervirtblock-csi created
+clusterrolebinding.rbac.authorization.k8s.io/glustervirtblock-csi-role created
+```
+
+>NOTE: You can skip seperate installation of kubernetes cluster, GD2 Cluster
+and CSI deployment if you directly use [GCS](https://github.com/gluster/gcs)
+installation method, it should bring your deployment in one shot. Refer
+[GCS deployment guide](https://github.com/gluster/gcs/blob/master/deploy/README.md)
+for more details.
+
+### Create a gluster virtual block storage class
+
+```
+[root@localhost]# cat storage-class.yaml
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: glustervirtblock-csi
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: org.gluster.glustervirtblock
+
+[root@localhost]# kubectl create -f storage-class.yaml
+storageclass.storage.k8s.io/glustervirtblock-csi created
+```
+
+Verify gluster virtual block storage class
+
+```
+[root@localhost]# kubectl get storageclass
+NAME                             PROVISIONER                    AGE
+glusterfs-csi (default)          org.gluster.glusterfs          28h
+glustervirtblock-csi             org.gluster.glustervirtblock   6s
+local-storage                    kubernetes.io/no-provisioner   29h
+```
+
+### Create RWO PersistentVolumeClaim
+
+```
+[root@localhost]# cat pvc.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: glusterblock-csi-pv
+spec:
+  storageClassName: glustervirtblock-csi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+```
+
+```
+[root@localhost]# kubectl create -f pvc.yaml
+persistentvolumeclaim/glusterblock-csi-pv created
+```
+
+Validate the gluster virtual block claim creation
+
+```
+[root@localhost]# kubectl get pvc
+NAME                  STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS           AGE
+glusterblock-csi-pv   Bound    pvc-1048edfb-1f06-11e9-8b7a-525400491c42   100Mi      RWO            glustervirtblock-csi   8s
+
+[root@localhost]# kubectl describe pvc
+Name:          glusterblock-csi-pv
+Namespace:     default
+StorageClass:  glustervirtblock-csi
+Status:        Bound
+Volume:        pvc-1048edfb-1f06-11e9-8b7a-525400491c42
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               storageClassName: glustervirtblock-csi
+               volume.beta.kubernetes.io/storage-provisioner: org.gluster.glustervirtblock
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      100Mi
+Access Modes:  RWO
+VolumeMode:    Filesystem
+Events:
+  Type       Reason                 Age    From                                                                                                        Message
+  ----       ------                 ----   ----                                                                                                        -------
+  Normal     ExternalProvisioning   2m34s  persistentvolume-controller                                                                                 waiting for a volume to be created, either by external provisioner "org.gluster.glustervirtblock" or manually created by system administrator
+  Normal     Provisioning           2m34s  org.gluster.glustervirtblock_csi-provisioner-glustervirtblockplugin-0_494f6242-1ee8-11e9-b6a0-0a580ae9416b  External provisioner is provisioning volume for claim "default/glusterblock-csi-pv"
+  Normal     ProvisioningSucceeded  2m34s  org.gluster.glustervirtblock_csi-provisioner-glustervirtblockplugin-0_494f6242-1ee8-11e9-b6a0-0a580ae9416b  Successfully provisioned volume pvc-1048edfb-1f06-11e9-8b7a-525400491c42
+Mounted By:  <none>
+```
+
+Verify gluster virtual block PV details:
+
+```
+[root@localhost]# kubectl describe pv
+Name:            pvc-1048edfb-1f06-11e9-8b7a-525400491c42
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: org.gluster.glustervirtblock
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:    glustervirtblock-csi
+Status:          Bound
+Claim:           default/glusterblock-csi-pv
+Reclaim Policy:  Delete
+Access Modes:    RWO
+VolumeMode:      Filesystem
+Capacity:        100Mi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            org.gluster.glustervirtblock
+    VolumeHandle:      pvc-1048edfb-1f06-11e9-8b7a-525400491c42
+    ReadOnly:          false
+    VolumeAttributes:      glusterbkpservers=gluster-kube1-0.glusterd2.gcs:gluster-kube2-0.glusterd2.gcs
+                           glusterserver=gluster-kube3-0.glusterd2.gcs
+                           glustervol=block_hosting_volume_ddd7ced7-7766-4797-9214-01fa9587472a
+                           storage.kubernetes.io/csiProvisionerIdentity=1548231861262-8081-org.gluster.glustervirtblock
+Events:                <none>
+```
+
+### Create a pod with RWO pvc claim
+
+```
+[root@localhost]# cat app.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gluster-0
+  labels:
+    app: gluster
+spec:
+  containers:
+  - name: gluster
+    image: redis
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - mountPath: "/mnt/gluster"
+      name: glusterblockcsivol
+  volumes:
+  - name: glusterblockcsivol
+    persistentVolumeClaim:
+      claimName: glusterblock-csi-pv
+```
+
+```
+[root@localhost]# kubectl create -f app.yaml
+pod/gluster-0 created
+```
+
+Validate app (RWO pvc claim)
+
+```
+[root@localhost]# kubectl get pods
+NAME        READY   STATUS    RESTARTS   AGE
+gluster-0   1/1     Running   0          38s
+```
+
+Login into app and validate mount point
+
+```
+[root@localhost]# kubectl exec -it gluster-0 /bin/bash
+[root@gluster-0 ~]# mount | grep gluster
+/mnt/blockhostvol/block_hosting_volume_ddd7ced7-7766-4797-9214-01fa9587472a/pvc-1048edfb-1f06-11e9-8b7a-525400491c42 on /mnt/gluster type xfs (rw,relatime,seclabel,attr2,inode64,noquota)
+[root@gluster-0 ~]#
+```
+
+Delete pod and pvc
+
+```
+[root@localhost]# kubectl delete pod gluster-0
+pod "gluster-0" deleted
+
+[root@localhost]# kubectl delete pvc glusterblock-csi-pv
+persistentvolumeclaim "glusterblock-csi-pv" deleted
+```
+
+### 2. RWX Volume Claim (Gluster CSI driver)
+
+```
+[root@localhost]# kubectl create -f csi-deployment.yaml
 service/csi-attacher-glusterfsplugin created
 statefulset.apps/csi-attacher-glusterfsplugin created
 daemonset.apps/csi-nodeplugin-glusterfsplugin created
@@ -70,7 +259,7 @@ installation method, it should bring your deployment in one shot. Refer
 [GCS deployment guide](https://github.com/gluster/gcs/blob/master/deploy/README.md)
 for more details.
 
-### Create a storage class
+### Create a glusterfs storage class (RWX)
 
 ```
 [root@localhost]# cat storage-class.yaml
@@ -88,7 +277,7 @@ provisioner: org.gluster.glusterfs
 storageclass.storage.k8s.io/glusterfs-csi created
 ```
 
-Verify storage class
+Verify glusterfs storage class (RWX)
 
 ```
 [root@localhost]# kubectl get storageclass
@@ -107,7 +296,7 @@ VolumeBindingMode:     Immediate
 Events:                <none>
 ```
 
-### Create PersistentVolumeClaim
+### Create RWX PersistentVolumeClaim
 
 ```
 [root@localhost]# cat pvc.yaml
@@ -124,11 +313,11 @@ spec:
     requests:
       storage: 5Gi
 
-[root@localhost cluster]# kubectl create -f pvc.yaml
+[root@localhost]# kubectl create -f pvc.yaml
 persistentvolumeclaim/glusterfs-csi-pv created
 ```
 
-Validate the claim creation
+Validate the RWX claim creation
 
 ```
 [root@localhost]# kubectl get pvc
@@ -184,7 +373,7 @@ Source:
 Events:            <none>
 ```
 
-### Create a pod with this claim
+### Create a pod with RWX pvc claim
 
 ```
 [root@localhost]# cat app.yaml
@@ -208,7 +397,7 @@ spec:
     persistentVolumeClaim:
       claimName: glusterfs-csi-pv
 
-[root@localhost cluster]#kubectl create -f app.yaml
+[root@localhost]# kubectl create -f app.yaml
 ```
 
 Check mount output and validate.
@@ -251,7 +440,7 @@ snapshotter: org.gluster.glusterfs
 ```
 
 ```
-[root@localhost]#kubectl create -f snapshot-class.yaml
+[root@localhost]# kubectl create -f snapshot-class.yaml
 volumesnapshotclass.snapshot.storage.k8s.io/glusterfs-csi-snap created
 ```
 
@@ -278,7 +467,7 @@ Snapshotter:           org.gluster.glusterfs
 Events:                <none>
 ```
 
-### Create a snapshot from pvc
+### Create a snapshot from RWX pvc
 
 ```
 [root@localhost]# cat volume-snapshot.yaml
@@ -414,11 +603,9 @@ spec:
     - name: glusterfscsivol
       persistentVolumeClaim:
         claimName: glusterfs-pv-restore
-
 ```
 
 ```
-
 [root@localhost]# kubectl create -f app-with-clone.yaml
 pod/redis-pvc-restore created
 ```
@@ -438,7 +625,7 @@ glusterfs-qbvgv                        1/1     Running   0          128m
 glusterfs-vclr4                        1/1     Running   0          128m
 redis                                  1/1     Running   0          109m
 redis-pvc-restore                      1/1     Running   0          26s
-[root@master vagrant]# kubectl exec -it redis-pvc-restore /bin/bash
+[root@localhost]# kubectl exec -it redis-pvc-restore /bin/bash
 root@redis-pvc-restore:/data# cd /mnt/gluster/
 root@redis-pvc-restore:/mnt/gluster# ls
 clone_data
