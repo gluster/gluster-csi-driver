@@ -1,0 +1,298 @@
+# Copyright 2018 The Gluster CSI Authors.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-attacher-glusterblockplugin
+  labels:
+    app: csi-attacher-glusterblockplugin
+spec:
+  selector:
+    app: csi-attacher-glusterblockplugin
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-attacher-glusterblockplugin
+spec:
+  serviceName: "csi-attacher-glusterblockplugin"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-attacher-glusterblockplugin
+    spec:
+      serviceAccount: csi-attacher
+      containers:
+        - name: csi-attacher
+          image: quay.io/k8scsi/csi-attacher:v0.4.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+
+        - name: glusterblock
+          image: docker.io/poornimag/glusterblock-csi-driver
+          imagePullPolicy: Always
+          args:
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--mntpathprefix=$(MNT_PATH_PREFIX)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://glusterd2-client.gcs:24007
+            - name: MNT_PATH_PREFIX
+              value: /mnt/gluster/
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /plugin
+      volumes:
+        - name: socket-dir
+          emptyDir:
+
+---
+kind: DaemonSet
+apiVersion: apps/v1beta2
+metadata:
+  name: csi-nodeplugin-glusterblockplugin
+spec:
+  selector:
+    matchLabels:
+      app: csi-nodeplugin-glusterblockplugin
+  template:
+    metadata:
+      labels:
+        app: csi-nodeplugin-glusterblockplugin
+    spec:
+      serviceAccount: csi-nodeplugin
+      containers:
+        - name: driver-registrar
+          image: quay.io/k8scsi/driver-registrar:v0.4.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /plugin/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/org.gluster.glusterblock/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: registration-dir
+              mountPath: /registration
+        - name: glusterblock
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["CAP_MKNOD"]
+              add: ["CAP_SYS_ADMIN"]
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: docker.io/poornimag/glusterblock-csi-driver
+          imagePullPolicy: Always
+          args:
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--mntpathprefix=$(MNT_PATH_PREFIX)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://glusterd2-client.gcs:24007
+            - name: MNT_PATH_PREFIX
+              value: /mnt/gluster/
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/org.gluster.glusterblock
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/
+            type: Directory
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-provisioner-glusterblockplugin
+  labels:
+    app: csi-provisioner-glusterblockplugin
+spec:
+  selector:
+    app: csi-provisioner-glusterblockplugin
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-provisioner-glusterblockplugin
+spec:
+  serviceName: "csi-provisioner-glusterblockplugin"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-provisioner-glusterblockplugin
+    spec:
+      serviceAccount: csi-provisioner
+      containers:
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.4.0
+          args:
+            - "--provisioner=org.gluster.glusterblock"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+          imagePullPolicy: "IfNotPresent"
+        - name: glusterblock
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["CAP_MKNOD"]
+              add: ["CAP_SYS_ADMIN"]
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: docker.io/poornimag/glusterblock-csi-driver
+          imagePullPolicy: Always
+          args:
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--resturl=$(REST_URL)"
+            - "--mntpathprefix=$(MNT_PATH_PREFIX)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: REST_URL
+              value: http://glusterd2-client.gcs:24007
+            - name: MNT_PATH_PREFIX
+              value: /mnt/gluster/
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /plugin
+      volumes:
+        - name: socket-dir
+          emptyDir:
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: glusterblock-csi
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: glusterblock-csi
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch", "delete", "get"]
+  - apiGroups: ["csi.storage.k8s.io"]
+    resources: ["csinodeinfos"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["create", "list", "watch", "delete"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: glusterblock-csi-role
+subjects:
+  - kind: ServiceAccount
+    name: glusterblock-csi
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: glusterblock-csi
+  apiGroup: rbac.authorization.k8s.io

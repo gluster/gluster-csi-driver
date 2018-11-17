@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
+	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
 
 	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/gluster/glusterd2/pkg/restclient"
@@ -68,7 +68,7 @@ func TestDriverSuite(t *testing.T) {
 
 		client: doClient,
 	}
-	d.Config = new(utils.Config)
+	d.Config = new(config.Config)
 	d.Endpoint = endpoint
 	d.NodeID = "testing"
 	go d.Run()

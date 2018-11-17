@@ -38,14 +38,32 @@ build_args+=( --build-arg "builddate=$BUILDDATE" )
 echo "=== $RUNTIME_CMD version ==="
 $RUNTIME_CMD version
 
-#-- Build container
+#-- Build glusterfs csi driver container
 $RUNTIME_CMD $build \
-        -t "${REPO}${DRIVER}" \
+        -t "${DRIVER}" \
         "${build_args[@]}" \
         -f pkg/glusterfs/Dockerfile \
         . \
 || exit 1
 
+# If running tests, extract profile data
+if [ "$RUN_TESTS" -ne 0 ]; then
+        rm -f profile.cov
+        $RUNTIME_CMD run --entrypoint cat "${REPO}${DRIVER}" \
+                /profile.cov > profile.cov
+fi
+
+DRIVER="glusterblock-csi-driver"
+
+#-- Build gluster block csi driver container
+$RUNTIME_CMD $build \
+        -t "${DRIVER}" \
+        "${build_args[@]}" \
+        -f pkg/glusterblock/Dockerfile \
+        . \
+|| exit 1
+
+REPO="poornimag/"
 # If running tests, extract profile data
 if [ "$RUN_TESTS" -ne 0 ]; then
         rm -f profile.cov

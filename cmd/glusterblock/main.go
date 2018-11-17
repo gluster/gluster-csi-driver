@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	gfd "github.com/gluster/gluster-csi-driver/pkg/glusterfs"
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
+	gfd "github.com/gluster/gluster-csi-driver/pkg/glusterblock"
+	"github.com/gluster/gluster-csi-driver/pkg/glusterblock/config"
+	"github.com/gluster/gluster-csi-driver/pkg/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -22,8 +23,8 @@ func main() {
 	var config = config.NewConfig()
 
 	cmd := &cobra.Command{
-		Use:   "glusterfs-csi-driver",
-		Short: "GlusterFS CSI driver",
+		Use:   "glusterblock-csi-driver",
+		Short: "GlusterFS Block CSI driver",
 		Run: func(cmd *cobra.Command, args []string) {
 			handle(config)
 		},
@@ -43,6 +44,10 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&config.RestSecret, "restsecret", "", "glusterd2 rest user secret")
 
+	cmd.PersistentFlags().StringVar(&config.MntPathPrefix, "mntpathprefix", "/mnt/gluster", "path under which gluster block host volumes will be mounted")
+
+	cmd.PersistentFlags().Int64Var(&config.BlockHostSize, "blockhostsize", 1024*utils.GB, "size of the block hosting gluster volume")
+
 	if err := cmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -55,7 +60,7 @@ func handle(config *config.Config) {
 	}
 	d := gfd.New(config)
 	if d == nil {
-		fmt.Println("Failed to initialize GlusterFS CSI driver")
+		fmt.Println("Failed to initialize GlusterFS Block CSI driver")
 		os.Exit(1)
 	}
 	d.Run()
