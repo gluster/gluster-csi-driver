@@ -121,7 +121,6 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	glog.V(1).Infof("creating volume with name %s", req.Name)
 
 	volSizeBytes := cs.getVolumeSize(req)
-	volSizeMB := int(utils.RoundUpSize(volSizeBytes, 1024*1024))
 
 	// parse the request.
 	parseResp, err := cs.ParseCreateVolRequest(req)
@@ -131,7 +130,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	volumeName := parseResp.gdVolReq.Name
 
-	err = cs.checkExistingVolume(volumeName, volSizeMB)
+	err = cs.checkExistingVolume(volumeName, volSizeBytes)
 	if err != nil {
 		if err != errVolumeNotFound {
 			glog.Errorf("error checking for pre-existing volume: %v", err)
@@ -147,7 +146,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			}
 		} else {
 			// If volume does not exist, provision volume
-			err = cs.doVolumeCreate(volumeName, volSizeMB)
+			err = cs.doVolumeCreate(volumeName, volSizeBytes)
 			if err != nil {
 				return nil, err
 			}
@@ -247,15 +246,15 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 	return nil
 }
 
-func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) error {
-	glog.V(4).Infof("received request to create volume %s with size %d", volumeName, volSizeMB)
+func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeBytes int64) error {
+	glog.V(4).Infof("received request to create volume %s with size %d", volumeName, volSizeBytes)
 	volMetaMap := make(map[string]string)
 	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
 	volumeReq := api.VolCreateReq{
 		Name:         volumeName,
 		Metadata:     volMetaMap,
 		ReplicaCount: defaultReplicaCount,
-		Size:         uint64(volSizeMB),
+		Size:         uint64(volSizeBytes),
 	}
 
 	glog.V(2).Infof("volume create request: %+v", volumeReq)
@@ -269,7 +268,7 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeMB int) err
 	return nil
 }
 
-func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int) error {
+func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes int64) error {
 	vol, err := cs.client.Volumes(volumeName)
 	if err != nil {
 		glog.Errorf("failed to fetch volume : %v", err)
@@ -288,7 +287,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeMB int
 			volInfo.Name, volInfo.Metadata)
 	}
 
-	if int(volInfo.Capacity) != volSizeMB {
+	if int64(volInfo.Capacity) != volSizeBytes {
 		return status.Errorf(codes.AlreadyExists, "volume %s already exits with different size: %d", volInfo.Name, volInfo.Capacity)
 	}
 
@@ -451,7 +450,7 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
 				Id:            vol.Name,
-				CapacityBytes: (int64(vol.Capacity)) * utils.MB,
+				CapacityBytes: int64(vol.Capacity),
 			},
 		})
 	}
@@ -530,7 +529,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 				Id:             snapInfo.VolInfo.Name,
 				SourceVolumeId: snapInfo.ParentVolName,
 				CreatedAt:      snapInfo.CreatedAt.Unix(),
-				SizeBytes:      (int64(snapInfo.VolInfo.Capacity)) * utils.MB,
+				SizeBytes:      int64(snapInfo.VolInfo.Capacity),
 				Status: &csi.SnapshotStatus{
 					Type: csi.SnapshotStatus_READY,
 				},
@@ -563,7 +562,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			Id:             snapResp.VolInfo.Name,
 			SourceVolumeId: snapResp.ParentVolName,
 			CreatedAt:      snapResp.CreatedAt.Unix(),
-			SizeBytes:      (int64(snapResp.VolInfo.Capacity)) * utils.MB,
+			SizeBytes:      int64(snapResp.VolInfo.Capacity),
 			Status: &csi.SnapshotStatus{
 				Type: csi.SnapshotStatus_READY,
 			},
@@ -685,7 +684,7 @@ func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshot
 			Id:             snap.VolInfo.Name,
 			SourceVolumeId: snap.ParentVolName,
 			CreatedAt:      snap.CreatedAt.Unix(),
-			SizeBytes:      (int64(snap.VolInfo.Capacity)) * utils.MB,
+			SizeBytes:      int64(snap.VolInfo.Capacity),
 			Status: &csi.SnapshotStatus{
 				Type: csi.SnapshotStatus_READY,
 			},
@@ -710,7 +709,7 @@ func (cs *ControllerServer) doPagination(req *csi.ListSnapshotsRequest, snapList
 					Id:             s.VolInfo.Name,
 					SourceVolumeId: snap.ParentName,
 					CreatedAt:      s.CreatedAt.Unix(),
-					SizeBytes:      (int64(s.VolInfo.Capacity)) * utils.MB,
+					SizeBytes:      int64(s.VolInfo.Capacity),
 					Status: &csi.SnapshotStatus{
 						Type: csi.SnapshotStatus_READY,
 					},
