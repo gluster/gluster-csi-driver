@@ -1,9 +1,9 @@
 [[constraint]]
-  branch = "master"
+  version = "1.0.0"
   name = "github.com/kubernetes-csi/drivers"
 
 [[constraint]]
-  branch = "v0.3.0"
+  version = "1.0.0-2"
   name = "github.com/kubernetes-csi/csi-test"
 
 [[constraint]]
@@ -12,7 +12,7 @@
 
 [[constraint]]
   name = "github.com/container-storage-interface/spec"
-  version = "~0.3.0"
+  version = "1.0.0"
 
 [[constraint]]
   branch = "master"
@@ -42,10 +42,6 @@
   name = "google.golang.org/grpc"
   version = "1.10.0"
 
-[[override]]
-  version = "kubernetes-1.12.0"
-  name = "k8s.io/apimachinery"
-
 [[constraint]]
   name = "k8s.io/kubernetes"
   version = "v1.12.0"
@@ -53,6 +49,10 @@
 [[override]]
   version = "kubernetes-1.12.0"
   name = "k8s.io/api"
+
+[[override]]
+  version = "kubernetes-1.12.0"
+  name = "k8s.io/apiserver"
 
 [[override]]
   name = "github.com/golang/protobuf"

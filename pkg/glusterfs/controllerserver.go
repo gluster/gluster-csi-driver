@@ -10,10 +10,11 @@ import (
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
-	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/glusterd2/pkg/api"
 	gd2Error "github.com/gluster/glusterd2/pkg/errors"
 	"github.com/golang/glog"
+	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -137,8 +138,8 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, err
 		}
 
-		if req.VolumeContentSource.GetSnapshot().GetId() != "" {
-			snapName := req.VolumeContentSource.GetSnapshot().GetId()
+		if req.VolumeContentSource.GetSnapshot().GetSnapshotId() != "" {
+			snapName := req.VolumeContentSource.GetSnapshot().GetSnapshotId()
 			glog.V(2).Infof("creating volume from snapshot %s", snapName)
 			err = cs.checkExistingSnapshot(snapName, req.GetName())
 			if err != nil {
@@ -169,9 +170,9 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			Id:            volumeName,
+			VolumeId:      volumeName,
 			CapacityBytes: volSizeBytes,
-			Attributes: map[string]string{
+			VolumeContext: map[string]string{
 				"glustervol":        volumeName,
 				"glusterserver":     glusterServer,
 				"glusterbkpservers": strings.Join(bkpServers, ":"),
@@ -416,24 +417,26 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	} {
 		vcaps = append(vcaps, &csi.VolumeCapability_AccessMode{Mode: mode})
 	}
-	capSupport := true
-	IsSupport := func(mode csi.VolumeCapability_AccessMode_Mode) bool {
-		for _, m := range vcaps {
-			if mode == m.Mode {
-				return true
-			}
-		}
-		return false
-	}
+	capSupport := false
+
 	for _, cap := range reqCaps {
-		if !IsSupport(cap.AccessMode.Mode) {
-			capSupport = false
+		for _, m := range vcaps {
+			if m.Mode == cap.AccessMode.Mode {
+				capSupport = true
+			}
 		}
 	}
 
-	resp := &csi.ValidateVolumeCapabilitiesResponse{
-		Supported: capSupport,
+	if !capSupport {
+		return nil, status.Errorf(codes.NotFound, "%v not supported", req.GetVolumeCapabilities())
 	}
+
+	resp := &csi.ValidateVolumeCapabilitiesResponse{
+		Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
+			VolumeCapabilities: req.VolumeCapabilities,
+		},
+	}
+
 	glog.V(1).Infof("GlusterFS CSI driver volume capabilities: %+v", resp)
 	return resp, nil
 }
@@ -449,7 +452,7 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	for _, vol := range volumes {
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
-				Id:            vol.Name,
+				VolumeId:      vol.Name,
 				CapacityBytes: int64(vol.Capacity),
 			},
 		})
@@ -504,7 +507,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 	glog.V(2).Infof("received request to create snapshot %v from volume %v", req.GetName(), req.GetSourceVolumeId())
 
-	snapInfo, err := cs.client.SnapshotInfo(req.Name)
+	snapInfo, err := cs.client.SnapshotInfo(req.GetName())
 	if err != nil {
 		glog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
 		errResp := cs.client.LastErrorResponse()
@@ -523,23 +526,44 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			glog.Errorf("snapshot %v belongs to different volume %v", req.GetName(), snapInfo.ParentVolName)
 			return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot - snapshot %s belongs to different volume %s", snapInfo.ParentVolName, req.GetSourceVolumeId())
 		}
-
+		createdAt, errT := ptypes.TimestampProto(snapInfo.CreatedAt)
+		if errT != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 		return &csi.CreateSnapshotResponse{
 			Snapshot: &csi.Snapshot{
-				Id:             snapInfo.VolInfo.Name,
+				SnapshotId:     snapInfo.VolInfo.Name,
 				SourceVolumeId: snapInfo.ParentVolName,
-				CreatedAt:      snapInfo.CreatedAt.Unix(),
+				CreationTime:   createdAt,
 				SizeBytes:      int64(snapInfo.VolInfo.Capacity),
-				Status: &csi.SnapshotStatus{
-					Type: csi.SnapshotStatus_READY,
-				},
+				ReadyToUse:     true,
 			},
 		}, nil
 	}
 
+	snapResp, err := cs.createSnapshot(req.GetName(), req.GetSourceVolumeId())
+	if err != nil {
+		return nil, err
+	}
+	createdAt, err := ptypes.TimestampProto(snapResp.CreatedAt)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     snapResp.VolInfo.Name,
+			SourceVolumeId: snapResp.ParentVolName,
+			CreationTime:   createdAt,
+			SizeBytes:      int64(snapResp.VolInfo.Capacity),
+			ReadyToUse:     true,
+		}}, nil
+}
+
+func (cs *ControllerServer) createSnapshot(name, sourceVolID string) (*api.SnapCreateResp, error) {
 	snapReq := api.SnapCreateReq{
-		VolName:  req.SourceVolumeId,
-		SnapName: req.Name,
+		VolName:  sourceVolID,
+		SnapName: name,
 		Force:    true,
 	}
 	glog.V(2).Infof("snapshot request: %+v", snapReq)
@@ -552,24 +576,13 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	actReq := api.SnapActivateReq{
 		Force: true,
 	}
-	err = cs.client.SnapshotActivate(actReq, req.Name)
+	err = cs.client.SnapshotActivate(actReq, name)
 	if err != nil {
 		glog.Errorf("failed to activate snapshot %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 	}
-	return &csi.CreateSnapshotResponse{
-		Snapshot: &csi.Snapshot{
-			Id:             snapResp.VolInfo.Name,
-			SourceVolumeId: snapResp.ParentVolName,
-			CreatedAt:      snapResp.CreatedAt.Unix(),
-			SizeBytes:      int64(snapResp.VolInfo.Capacity),
-			Status: &csi.SnapshotStatus{
-				Type: csi.SnapshotStatus_READY,
-			},
-		},
-	}, nil
+	return &snapResp, nil
 }
-
 func (cs *ControllerServer) validateCreateSnapshotReq(req *csi.CreateSnapshotRequest) error {
 	if req == nil {
 		return status.Errorf(codes.InvalidArgument, "CreateSnapshot request is nil")
@@ -679,15 +692,18 @@ func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshot
 		return nil, status.Errorf(codes.NotFound, "ListSnapshot - failed to get snapshot info %s", err.Error())
 
 	}
+
+	createdAt, err := ptypes.TimestampProto(snap.CreatedAt)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 	entries = append(entries, &csi.ListSnapshotsResponse_Entry{
 		Snapshot: &csi.Snapshot{
-			Id:             snap.VolInfo.Name,
+			SnapshotId:     snap.VolInfo.Name,
 			SourceVolumeId: snap.ParentVolName,
-			CreatedAt:      snap.CreatedAt.Unix(),
+			CreationTime:   createdAt,
 			SizeBytes:      int64(snap.VolInfo.Capacity),
-			Status: &csi.SnapshotStatus{
-				Type: csi.SnapshotStatus_READY,
-			},
+			ReadyToUse:     true,
 		},
 	})
 
@@ -704,15 +720,17 @@ func (cs *ControllerServer) doPagination(req *csi.ListSnapshotsRequest, snapList
 	var entries []*csi.ListSnapshotsResponse_Entry
 	for _, snap := range snapList {
 		for _, s := range snap.SnapList {
+			createdAt, err := ptypes.TimestampProto(s.CreatedAt)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
 			entries = append(entries, &csi.ListSnapshotsResponse_Entry{
 				Snapshot: &csi.Snapshot{
-					Id:             s.VolInfo.Name,
+					SnapshotId:     s.VolInfo.Name,
 					SourceVolumeId: snap.ParentName,
-					CreatedAt:      s.CreatedAt.Unix(),
+					CreationTime:   createdAt,
 					SizeBytes:      int64(s.VolInfo.Capacity),
-					Status: &csi.SnapshotStatus{
-						Type: csi.SnapshotStatus_READY,
-					},
+					ReadyToUse:     true,
 				},
 			})
 		}
