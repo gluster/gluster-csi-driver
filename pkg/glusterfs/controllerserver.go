@@ -138,10 +138,8 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, err
 		}
 
-		if req.VolumeContentSource.GetSnapshot().GetSnapshotId() != "" {
-			snapName := req.VolumeContentSource.GetSnapshot().GetSnapshotId()
-			glog.V(2).Infof("creating volume from snapshot %s", snapName)
-			err = cs.checkExistingSnapshot(snapName, req.GetName())
+		if req.VolumeContentSource.GetType() != nil {
+			err = cs.cloneVolumeFromSource(volumeName, req.VolumeContentSource)
 			if err != nil {
 				return nil, err
 			}
@@ -184,6 +182,36 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	return resp, nil
 }
 
+func (cs *ControllerServer) cloneVolumeFromSource(volName string, volumeSource *csi.VolumeContentSource) error {
+	var err error
+	// type
+	switch volumeSource.Type.(type) {
+	case *csi.VolumeContentSource_Snapshot:
+		snapName := volumeSource.GetSnapshot().GetSnapshotId()
+		glog.V(2).Infof("creating volume from snapshot %s", snapName)
+		err = cs.checkExistingSnapshot(snapName, volName)
+		if err != nil {
+			return err
+		}
+		//create snapshot clone
+		err = cs.createSnapshotClone(snapName, volName)
+	case *csi.VolumeContentSource_Volume:
+		parentVol := volumeSource.GetVolume().GetVolumeId()
+		snapName := volName + parentVol
+		glog.V(2).Infof("creating volume from volume source %s", snapName)
+		_, err = cs.createSnapshot(snapName, volName)
+		if err != nil {
+			return err
+		}
+		err = cs.createSnapshotClone(snapName, volName)
+
+	default:
+		err = status.Errorf(codes.Internal, "Not a proper volume source")
+		glog.Error(err)
+	}
+	return err
+}
+
 func (cs *ControllerServer) getVolumeSize(req *csi.CreateVolumeRequest) int64 {
 	// If capacity mentioned, pick that or use default size 1 GB
 	volSizeBytes := defaultVolumeSize
@@ -214,8 +242,7 @@ func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) erro
 			return status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 		}
 	}
-	//create snapshot clone
-	err = cs.createSnapshotClone(snapName, volName)
+
 	return err
 }
 
@@ -488,6 +515,7 @@ func (cs *ControllerServer) ControllerGetCapabilities(ctx context.Context, req *
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+		csi.ControllerServiceCapability_RPC_CLONE_VOLUME,
 	} {
 		caps = append(caps, newCap(cap))
 	}
