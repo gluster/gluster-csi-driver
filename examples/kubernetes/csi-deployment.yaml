@@ -99,7 +99,7 @@ spec:
       hostNetwork: true
       containers:
         - name: driver-registrar
-          image: quay.io/k8scsi/driver-registrar:v1.0.0
+          image: quay.io/k8scsi/driver-registrar:v1.0-canary
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -108,7 +108,7 @@ spec:
             - name: ADDRESS
               value: /plugin/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: /var/lib/kubelet/plugins/org.gluster.glusterfs/csi.sock
+              value: /var/lib/kubelet/plugins_registry/org.gluster.glusterfs/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -151,11 +151,11 @@ spec:
       volumes:
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/org.gluster.glusterfs
+            path: /var/lib/kubelet/plugins_registry/org.gluster.glusterfs
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/
+            path: /var/lib/kubelet/plugins_registry/
             type: Directory
         - name: pods-mount-dir
           hostPath:
