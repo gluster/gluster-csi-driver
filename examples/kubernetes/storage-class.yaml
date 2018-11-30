@@ -4,5 +4,5 @@ kind: StorageClass
 metadata:
   name: glusterfs-csi
   annotations:
-    storageclass.beta.kubernetes.io/is-default-class: "true"
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: org.gluster.glusterfs

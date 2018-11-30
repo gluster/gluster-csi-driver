@@ -73,7 +73,7 @@ kind: StorageClass
 metadata:
   name: glusterfs-csi
   annotations:
-    storageclass.beta.kubernetes.io/is-default-class: "true"
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: org.gluster.glusterfs
 ```
 
@@ -91,7 +91,7 @@ glusterfs-csi (default)   org.gluster.glusterfs   105s
 [root@localhost]# kubectl describe storageclass/glusterfs-csi
 Name:                  glusterfs-csi
 IsDefaultClass:        Yes
-Annotations:           storageclass.beta.kubernetes.io/is-default-class=true
+Annotations:           storageclass.kubernetes.io/is-default-class=true
 Provisioner:           org.gluster.glusterfs
 Parameters:            <none>
 AllowVolumeExpansion:  <unset>
@@ -111,7 +111,7 @@ apiVersion: v1
 metadata:
   name: glusterfs-csi-pv
   annotations:
-    volume.beta.kubernetes.io/storage-class: glusterfs-csi
+    storageClassName: glusterfs-csi
 spec:
   accessModes:
   - ReadWriteMany
@@ -142,8 +142,8 @@ Labels:        <none>
 Annotations:   control-plane.alpha.kubernetes.io/leader={"holderIdentity":"874a6cc9-a511-11e8-bae2-0a580af40202","leaseDurationSeconds":15,"acquireTime":"2018-08-21T07:26:58Z","renewTime":"2018-08-21T07:27:00Z","lea...
                pv.kubernetes.io/bind-completed=yes
                pv.kubernetes.io/bound-by-controller=yes
-               volume.beta.kubernetes.io/storage-class=glusterfs-csi
-               volume.beta.kubernetes.io/storage-provisioner=org.gluster.glusterfs
+               storageClassName=glusterfs-csi
+               volume.kubernetes.io/storage-provisioner=org.gluster.glusterfs
 Finalizers:    [kubernetes.io/pvc-protection]
 Capacity:      5Gi
 Access Modes:  RWX
@@ -373,7 +373,7 @@ Volume:        pvc-dfcc36f0-d757-11e8-892a-525400d84c47
 Labels:        <none>
 Annotations:   pv.kubernetes.io/bind-completed: yes
                pv.kubernetes.io/bound-by-controller: yes
-               volume.beta.kubernetes.io/storage-provisioner: org.gluster.glusterfs
+               volume.kubernetes.io/storage-provisioner: org.gluster.glusterfs
 Finalizers:    [kubernetes.io/pvc-protection]
 Capacity:      5Gi
 Access Modes:  RWO
