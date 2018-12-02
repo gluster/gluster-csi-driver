@@ -31,15 +31,15 @@ const (
 
 // VolumeType struct store volume SC param values.
 type volumeType struct {
-	replicaCount       int
-	arbiterCount       int
-	arbiterType        map[string]bool
-	arbiterZones       []string
-	disperseData       int
-	disperseRedundancy int
-	halo               bool
-	haloLatencyMs      int
-	haloMinReplicas    int
+	replicaCount int
+	arbiterCount int
+	arbiterType  map[string]bool
+	arbiterZones []string
+	//	disperseData       int
+	//	disperseRedundancy int
+	//	halo               bool
+	//	haloLatencyMs      int
+	//	haloMinReplicas    int
 
 	api.VolOptionReq
 }
