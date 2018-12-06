@@ -55,5 +55,10 @@
   name = "k8s.io/apiserver"
 
 [[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  branch = "release-1.13"
+
+
+[[override]]
   name = "github.com/golang/protobuf"
   version = "v1.1.0"
