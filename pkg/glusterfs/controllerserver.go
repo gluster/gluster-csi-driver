@@ -272,12 +272,12 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeBytes int64
 func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes int64) error {
 	vol, err := cs.client.Volumes(volumeName)
 	if err != nil {
-		glog.Errorf("failed to fetch volume : %v", err)
 		errResp := cs.client.LastErrorResponse()
 		//errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return errVolumeNotFound
 		}
+		glog.Errorf("failed to fetch volume : %v", err)
 		return status.Errorf(codes.Internal, "error in fetching volume details %v", err)
 	}
 

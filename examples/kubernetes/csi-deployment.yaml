@@ -59,6 +59,7 @@ spec:
           image: docker.io/gluster/glusterfs-csi-driver
           args:
             - "--nodeid=$(NODE_ID)"
+            - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
             - "--restsecret=$(REST_SECRET)"
@@ -127,6 +128,7 @@ spec:
           image: docker.io/gluster/glusterfs-csi-driver
           args:
             - "--nodeid=$(NODE_ID)"
+            - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
             - "--restsecret=$(REST_SECRET)"
@@ -219,6 +221,7 @@ spec:
           image: docker.io/gluster/glusterfs-csi-driver
           args:
             - "--nodeid=$(NODE_ID)"
+            - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--resturl=$(REST_URL)"
             - "--restsecret=$(REST_SECRET)"
