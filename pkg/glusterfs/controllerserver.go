@@ -262,6 +262,12 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeBytes int64
 	volumeCreateResp, err := cs.client.VolumeCreate(volumeReq)
 	if err != nil {
 		glog.Errorf("failed to create volume: %v", err)
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of `No route to host` error
+		if errResp != nil && errResp.StatusCode == http.StatusConflict {
+			return status.Errorf(codes.Aborted, "volume create already in process: %v", err)
+		}
+
 		return status.Errorf(codes.Internal, "failed to create volume: %v", err)
 	}
 
@@ -570,7 +576,13 @@ func (cs *ControllerServer) createSnapshot(name, sourceVolID string) (*api.SnapC
 	snapResp, err := cs.client.SnapshotCreate(snapReq)
 	if err != nil {
 		glog.Errorf("failed to create snapshot %v", err)
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of `No route to host` error
+		if errResp != nil && errResp.StatusCode == http.StatusConflict {
+			return nil, status.Errorf(codes.Aborted, "snapshot create already in process: %v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot - snapshot create failed %s", err.Error())
+
 	}
 
 	actReq := api.SnapActivateReq{
