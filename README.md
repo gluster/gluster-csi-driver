@@ -58,10 +58,22 @@ clusterrole.rbac.authorization.k8s.io/glusterfs-csi created
 clusterrolebinding.rbac.authorization.k8s.io/glusterfs-csi-role created
 ```
 
-Below listed feature gates need to be enabled in kubernetes v1.13.0-beta.2
+Below listed feature gates need to be enabled in kubernetes v1.12.1
 
 ```
---feature-gates=VolumeSnapshotDataSource=true
+--feature-gates=VolumeSnapshotDataSource=true,CSINodeInfo=true,CSIDriverRegistry=true
+```
+
+### Create CSIDriverRegistry and CSINodeInfo CRD in kubernetes 1.12.1
+
+```
+[root@localhost]#kubectl create -f driver-registry-crd.yaml --validate=false
+customresourcedefinition.apiextensions.k8s.io/csidrivers.csi.storage.k8s.io created
+```
+
+```
+[root@localhost]#kubectl apply -f node-info-crd.yaml --validate=false
+customresourcedefinition.apiextensions.k8s.io/csinodeinfos.csi.storage.k8s.io created
 ```
 
 ### Create a storage class

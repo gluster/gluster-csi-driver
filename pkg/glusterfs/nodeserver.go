@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -63,9 +63,9 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if req.GetReadonly() {
 		mo = append(mo, "ro")
 	}
-	gs := req.GetVolumeContext()["glusterserver"]
+	gs := req.GetVolumeAttributes()["glusterserver"]
 
-	ep := req.GetVolumeContext()["glustervol"]
+	ep := req.GetVolumeAttributes()["glustervol"]
 	source := fmt.Sprintf("%s:%s", gs, ep)
 
 	err = glusterMounter.Mount(source, targetPath, "glusterfs", mo)
@@ -82,13 +82,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-// NodeGetVolumeStats returns volume capacity statistics available for the volume
-func (ns *NodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-
-	//TODO need to implement volume status call
-	return nil, status.Error(codes.Unimplemented, "")
-
-}
 func (ns *NodeServer) validateNodePublishVolumeReq(req *csi.NodePublishVolumeRequest) error {
 	if req == nil {
 		return status.Error(codes.InvalidArgument, "request cannot be empty")
@@ -144,7 +137,14 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
-// NodeGetInfo returns NodeGetInfoResponse for CO.
+// NodeGetId returns NodeGetIdResponse for CO.
+func (ns *NodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) (*csi.NodeGetIdResponse, error) {
+	return &csi.NodeGetIdResponse{
+		NodeId: ns.GfDriver.NodeID,
+	}, nil
+}
+
+// NodeGetInfo info
 func (ns *NodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
 		NodeId: ns.GfDriver.NodeID,
