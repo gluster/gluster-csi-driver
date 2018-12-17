@@ -543,31 +543,10 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		}, nil
 	}
 
-	snapReq := api.SnapCreateReq{
-		VolName:  req.SourceVolumeId,
-		SnapName: req.Name,
-		Force:    true,
-	}
-	glog.V(2).Infof("snapshot request: %+v", snapReq)
-	snapResp, err := cs.client.SnapshotCreate(snapReq)
+	snapResp, err := cs.doSnapshot(req.GetName(), req.GetSourceVolumeId())
 	if err != nil {
-		glog.Errorf("failed to create snapshot %v", err)
-		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of `No route to host` error
-		if errResp != nil && errResp.StatusCode == http.StatusConflict {
-			return nil, status.Errorf(codes.Aborted, "snapshot create already in process: %v", err)
-		}
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot - snapshot create failed %s", err.Error())
+		return nil, err
 
-	}
-
-	actReq := api.SnapActivateReq{
-		Force: true,
-	}
-	err = cs.client.SnapshotActivate(actReq, req.Name)
-	if err != nil {
-		glog.Errorf("failed to activate snapshot %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 	}
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
@@ -580,6 +559,36 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			},
 		},
 	}, nil
+}
+
+func (cs *ControllerServer) doSnapshot(name, sourceVolID string) (*api.SnapCreateResp, error) {
+	snapReq := api.SnapCreateReq{
+		VolName:  sourceVolID,
+		SnapName: name,
+		Force:    true,
+	}
+
+	glog.V(2).Infof("snapshot request: %+v", snapReq)
+	snapResp, err := cs.client.SnapshotCreate(snapReq)
+	if err != nil {
+		glog.Errorf("failed to create snapshot %v", err)
+		errResp := cs.client.LastErrorResponse()
+		//errResp will be nil in case of `No route to host` error
+		if errResp != nil && errResp.StatusCode == http.StatusConflict {
+			return nil, status.Errorf(codes.Aborted, "snapshot create already in process: %v", err)
+		}
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot - snapshot create failed %s", err.Error())
+	}
+
+	actReq := api.SnapActivateReq{
+		Force: true,
+	}
+	err = cs.client.SnapshotActivate(actReq, name)
+	if err != nil {
+		glog.Errorf("failed to activate snapshot %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
+	}
+	return &snapResp, nil
 }
 
 func (cs *ControllerServer) validateCreateSnapshotReq(req *csi.CreateSnapshotRequest) error {
