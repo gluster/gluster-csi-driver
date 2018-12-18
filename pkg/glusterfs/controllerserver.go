@@ -239,10 +239,16 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 		return status.Error(codes.InvalidArgument, "name is a required field")
 	}
 
-	if reqCaps := req.GetVolumeCapabilities(); reqCaps == nil {
+	reqCaps := req.GetVolumeCapabilities()
+	if reqCaps == nil {
 		return status.Error(codes.InvalidArgument, "volume capabilities is a required field")
 	}
 
+	for _, cap := range reqCaps {
+		if cap.GetBlock() != nil {
+			return status.Error(codes.Unimplemented, "block volume not supported")
+		}
+	}
 	return nil
 }
 
