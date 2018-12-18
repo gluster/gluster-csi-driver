@@ -64,6 +64,12 @@ Below listed feature gates need to be enabled in kubernetes v1.12.1
 --feature-gates=VolumeSnapshotDataSource=true,CSINodeInfo=true,CSIDriverRegistry=true
 ```
 
+>NOTE: You can skip seperate installation of kubernetes cluster, GD2 Cluster
+and CSI deployment if you directly use [GCS](https://github.com/gluster/gcs)
+installation method, it should bring your deployment in one shot. Refer
+[GCS deployment guide](https://github.com/gluster/gcs/blob/master/deploy/README.md)
+for more details.
+
 ### Create CSIDriverRegistry and CSINodeInfo CRD in kubernetes 1.12.1
 
 ```
