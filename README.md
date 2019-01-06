@@ -58,10 +58,10 @@ clusterrole.rbac.authorization.k8s.io/glusterfs-csi created
 clusterrolebinding.rbac.authorization.k8s.io/glusterfs-csi-role created
 ```
 
-Below listed feature gates need to be enabled in kubernetes v1.12.1
+Below listed feature gates need to be enabled in kubernetes v1.13.1
 
 ```
---feature-gates=VolumeSnapshotDataSource=true,CSINodeInfo=true,CSIDriverRegistry=true
+--feature-gates=VolumeSnapshotDataSource=true
 ```
 
 >NOTE: You can skip seperate installation of kubernetes cluster, GD2 Cluster
@@ -69,18 +69,6 @@ and CSI deployment if you directly use [GCS](https://github.com/gluster/gcs)
 installation method, it should bring your deployment in one shot. Refer
 [GCS deployment guide](https://github.com/gluster/gcs/blob/master/deploy/README.md)
 for more details.
-
-### Create CSIDriverRegistry and CSINodeInfo CRD in kubernetes 1.12.1
-
-```
-[root@localhost]#kubectl create -f driver-registry-crd.yaml --validate=false
-customresourcedefinition.apiextensions.k8s.io/csidrivers.csi.storage.k8s.io created
-```
-
-```
-[root@localhost]#kubectl apply -f node-info-crd.yaml --validate=false
-customresourcedefinition.apiextensions.k8s.io/csinodeinfos.csi.storage.k8s.io created
-```
 
 ### Create a storage class
 
