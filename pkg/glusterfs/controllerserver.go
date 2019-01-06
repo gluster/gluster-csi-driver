@@ -79,7 +79,7 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 		case "replicas":
 			replicas := v
-			replicaCount, err = parseVolumeParamInt(replicas, minReplicaCount, maxReplicaCount)
+			replicaCount, err = parseVolumeParamInt(replicas)
 			if err != nil {
 				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
@@ -94,18 +94,18 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	return &reqConf, nil
 }
 
-func parseVolumeParamInt(valueString string, min int, max int) (int, error) {
+func parseVolumeParamInt(valueString string) (int, error) {
 
 	count, err := strconv.Atoi(valueString)
 	if err != nil {
-		return 0, fmt.Errorf("value '%s' must be an integer between %d and %d", valueString, min, max)
+		return 0, fmt.Errorf("value '%s' must be an integer between %d and %d", valueString, minReplicaCount, maxReplicaCount)
 	}
 
-	if count < min {
-		return 0, fmt.Errorf("value '%s' must be >= %v", valueString, min)
+	if count < minReplicaCount {
+		return 0, fmt.Errorf("value '%s' must be >= %v", valueString, minReplicaCount)
 	}
-	if count > max {
-		return 0, fmt.Errorf("value '%s' must be <= %v", valueString, max)
+	if count > maxReplicaCount {
+		return 0, fmt.Errorf("value '%s' must be <= %v", valueString, maxReplicaCount)
 	}
 
 	return count, nil
