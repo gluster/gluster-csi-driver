@@ -14,7 +14,8 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util"
 )
 
-// NodeServer struct of Glusterfs CSI driver with supported methods of CSI node server spec.
+// NodeServer struct of Glusterfs CSI driver with supported methods of CSI node
+// server spec.
 type NodeServer struct {
 	*GfDriver
 }
@@ -31,7 +32,8 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-// NodePublishVolume mounts the volume mounted to the staging path to the target path
+// NodePublishVolume mounts the volume mounted to the staging path to the target
+// path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	glog.V(2).Infof("received node publish volume request %+v", req)
 
@@ -82,10 +84,11 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-// NodeGetVolumeStats returns volume capacity statistics available for the volume
+// NodeGetVolumeStats returns volume capacity statistics available for the
+// volume
 func (ns *NodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 
-	//TODO need to implement volume status call
+	// TODO need to implement volume status call
 	return nil, status.Error(codes.Unimplemented, "")
 
 }

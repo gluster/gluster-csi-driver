@@ -29,19 +29,22 @@ const (
 
 var errVolumeNotFound = errors.New("volume not found")
 
-// ControllerServer struct of GlusterFS CSI driver with supported methods of CSI controller server spec.
+// ControllerServer struct of GlusterFS CSI driver with supported methods of CSI
+// controller server spec.
 type ControllerServer struct {
 	*GfDriver
 }
 
 // CsiDrvParam stores csi driver specific request parameters.
 // This struct will be used to gather specific fields of CSI driver:
-// For eg. csiDrvName, csiDrvVersion..etc
-// and also gather parameters passed from SC which not part of gluster volcreate api.
+// For eg. csiDrvName, csiDrvVersion..etc and also gather
+// parameters passed from SC which not part of gluster volcreate api.
 // GlusterCluster - The resturl of gluster cluster
 // GlusterUser - The gluster username who got access to the APIs.
-// GlusterUserToken - The password/token of glusterUser to connect to glusterCluster
-// GlusterVersion - Says the version of the glustercluster running in glusterCluster endpoint.
+// GlusterUserToken - The password/token of glusterUser to connect to
+// glusterCluster.
+// GlusterVersion - Says the version of the glustercluster
+// running in glusterCluster endpoint.
 // All of these fields are optional and can be used if needed.
 type CsiDrvParam struct {
 	GlusterCluster   string
@@ -52,13 +55,15 @@ type CsiDrvParam struct {
 	CsiDrvVersion    string
 }
 
-// ProvisionerConfig is the combined configuration of gluster cli vol create request and CSI driver specific input
+// ProvisionerConfig is the combined configuration of gluster cli vol create
+// request and CSI driver specific input
 type ProvisionerConfig struct {
 	gdVolReq *api.VolCreateReq
-	//csiConf  *CsiDrvParam
+	// csiConf  *CsiDrvParam
 }
 
-// ParseCreateVolRequest parse incoming volume create request and fill ProvisionerConfig.
+// ParseCreateVolRequest parse incoming volume create request and fill
+// ProvisionerConfig.
 func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) (*ProvisionerConfig, error) {
 
 	var reqConf ProvisionerConfig
@@ -155,9 +160,9 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	err = cs.client.VolumeStart(volumeName, true)
 	if err != nil {
-		//we dont need to delete the volume if volume start fails
-		//as we are listing the volumes and starting it again
-		//before sending back the response
+		// we dont need to delete the volume if volume start fails as we are
+		// listing the volumes and starting it again before sending back the
+		// response
 		glog.Errorf("failed to start volume: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
 	}
@@ -197,7 +202,7 @@ func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) erro
 	snapInfo, err := cs.client.SnapshotInfo(snapName)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
+		// errResp will be nil in case of No route to host error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return status.Errorf(codes.NotFound, "failed to get snapshot info %s", err.Error())
 		}
@@ -214,7 +219,7 @@ func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) erro
 			return status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 		}
 	}
-	//create snapshot clone
+	// create snapshot clone
 	err = cs.createSnapshotClone(snapName, volName)
 	return err
 }
@@ -269,7 +274,7 @@ func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeBytes int64
 	if err != nil {
 		glog.Errorf("failed to create volume: %v", err)
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of `No route to host` error
+		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusConflict {
 			return status.Errorf(codes.Aborted, "volume create already in process: %v", err)
 		}
@@ -285,7 +290,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes 
 	vol, err := cs.client.Volumes(volumeName)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of `No route to host` error
+		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return errVolumeNotFound
 		}
@@ -304,7 +309,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes 
 		return status.Errorf(codes.AlreadyExists, "volume %s already exits with different size: %d", volInfo.Name, volInfo.Capacity)
 	}
 
-	//volume has not started, start the volume
+	// volume has not started, start the volume
 	if volInfo.State != api.VolStarted {
 		err = cs.client.VolumeStart(volInfo.Name, true)
 		if err != nil {
@@ -362,7 +367,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of `No route to host` error
+		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
@@ -376,7 +381,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	err = cs.client.VolumeDelete(req.VolumeId)
 	if err != nil {
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
+		// errResp will be nil in case of No route to host error
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
@@ -455,7 +460,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 // ListVolumes returns a list of volumes
 func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-	//Fetch all the volumes in the TSP
+	// Fetch all the volumes in the TSP
 	volumes, err := cs.client.Volumes("")
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -523,7 +528,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	if err != nil {
 		glog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of No route to host error
+		// errResp will be nil in case of No route to host error
 		if errResp != nil && errResp.StatusCode != http.StatusNotFound {
 
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot - failed to get snapshot info %s", err.Error())
@@ -583,7 +588,7 @@ func (cs *ControllerServer) doSnapshot(name, sourceVolID string) (*api.SnapCreat
 	if err != nil {
 		glog.Errorf("failed to create snapshot %v", err)
 		errResp := cs.client.LastErrorResponse()
-		//errResp will be nil in case of `No route to host` error
+		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusConflict {
 			return nil, status.Errorf(codes.Aborted, "snapshot create already in process: %v", err)
 		}
@@ -613,7 +618,7 @@ func (cs *ControllerServer) validateCreateSnapshotReq(req *csi.CreateSnapshotReq
 		return status.Error(codes.InvalidArgument, "CreateSnapshot - sourceVolumeId is nil")
 	}
 	if req.GetName() == req.GetSourceVolumeId() {
-		//In glusterd2 we cannot create a snapshot as same name as volume name
+		// In glusterd2 we cannot create a snapshot as same name as volume name
 		return status.Error(codes.InvalidArgument, "CreateSnapshot - sourceVolumeId  and snapshot name cannot be same")
 	}
 	return nil
@@ -673,7 +678,7 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		return cs.listSnapshotFromID(req.GetSnapshotId())
 	}
 
-	//If volume id is sent
+	// If volume id is sent
 	if len(req.GetSourceVolumeId()) != 0 {
 		snaplist, err = cs.client.SnapshotList(req.SourceVolumeId)
 		if err != nil {
@@ -686,7 +691,7 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 			return nil, status.Errorf(codes.Internal, "ListSnapshot - failed to get snapshots %s", err.Error())
 		}
 	} else {
-		//Get all snapshots
+		// Get all snapshots
 		snaplist, err = cs.client.SnapshotList("")
 		if err != nil {
 			glog.Errorf("failed to list snapshots %v", err)
@@ -755,8 +760,8 @@ func (cs *ControllerServer) doPagination(req *csi.ListSnapshotsRequest, snapList
 
 	}
 
-	//TODO need to remove paginating code once  glusterd2 issue
-	//https://github.com/gluster/glusterd2/issues/372 is merged
+	// TODO need to remove paginating code once  glusterd2 issue
+	// https://github.com/gluster/glusterd2/issues/372 is merged
 	var (
 		maximumEntries   = req.MaxEntries
 		nextToken        int32
