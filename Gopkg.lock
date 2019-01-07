@@ -467,6 +467,14 @@
   version = "v1.1.5"
 
 [[projects]]
+  digest = "1:4059c14e87a2de3a434430340521b5feece186c1469eff0834c29a63870de3ed"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242"
+  version = "v1.0.1"
+
+[[projects]]
   digest = "1:5b7d11a9941a975a126f7d79e3871f9201ed715c62af86e9dca1e231cc184192"
   name = "github.com/kubernetes-csi/csi-test"
   packages = [
@@ -662,7 +670,7 @@
     "model",
   ]
   pruneopts = "NUT"
-  revision = "b1c43a6df3aedba268353d940b5974f05037ed5c"
+  revision = "2998b132700a7d019ff618c06a234b47c1f3f681"
 
 [[projects]]
   branch = "master"
@@ -678,12 +686,13 @@
   revision = "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
 
 [[projects]]
-  digest = "1:b2339e83ce9b5c4f79405f949429a7f68a9a904fed903c672aac1e7ceb7f5f02"
+  digest = "1:e256b859ab89f005f2f639f5ed9807d0873d9135e27c6382f419b840ff9abe71"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
-  version = "v1.0.6"
+  revision = "e1e72e9de974bd926e5c56f83753fba2df402ce5"
+  source = "https://github.com/sirupsen/logrus.git"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:10dad358673cf6e0ee07c2515cc5776a2b11f4adedf647f397739de850c1e3d7"
