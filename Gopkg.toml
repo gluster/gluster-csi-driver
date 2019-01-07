@@ -59,16 +59,8 @@
   version = "kubernetes-1.13.1"
 
 [[override]]
-  name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.1"
-
-[[override]]
   name = "k8s.io/apiextensions-apiserver"
   version = "kubernetes-1.13.1"
-
-[[override]]
- name = "k8s.io/apiextensions-apiserver"
- version = "kubernetes-1.13.1"
 
 [[override]]
   version = "kubernetes-1.13.1"
