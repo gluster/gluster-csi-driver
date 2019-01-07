@@ -24,7 +24,7 @@
 
 [[override]]
   name = "github.com/Sirupsen/logrus"
-  source = "github.com/sirupsen/logrus"
+  source = "https://github.com/sirupsen/logrus.git"
 
 [[override]]
   revision = "5db89f0ca68677abc5eefce8f2a0a772c98ba52d"
