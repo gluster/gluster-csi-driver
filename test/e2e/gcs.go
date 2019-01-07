@@ -5,15 +5,11 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
-	//. "github.com/onsi/gomega"
 
-	//appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	//"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 )
