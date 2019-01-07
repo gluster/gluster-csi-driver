@@ -1,6 +1,8 @@
 package glusterfs
 
 import (
+	"time"
+
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
 
 	"github.com/gluster/glusterd2/pkg/restclient"
@@ -31,7 +33,12 @@ func New(config *utils.Config) *GfDriver {
 
 	gfd.Config = config
 	var err error
-	gfd.client, err = restclient.New(config.RestURL, config.RestUser, config.RestSecret, "", false)
+	gfd.client, err = restclient.NewClientWithOpts(
+		restclient.WithBaseURL(config.RestURL),
+		restclient.WithUsername(config.RestUser),
+		restclient.WithPassword(config.RestSecret),
+		restclient.WithTimeOut(time.Duration(config.RestTimeout)*time.Second),
+		restclient.WithDebugRoundTripper())
 
 	if err != nil {
 		glog.Errorf("error creating glusterd2 REST client: %s", err.Error())
