@@ -23,6 +23,10 @@
   source = "https://github.com/fsnotify/fsnotify.git"
 
 [[override]]
+  name = "github.com/Sirupsen/logrus"
+  source = "github.com/sirupsen/logrus"
+
+[[override]]
   revision = "5db89f0ca68677abc5eefce8f2a0a772c98ba52d"
   name = "github.com/docker/distribution"
 
@@ -49,6 +53,18 @@
 [[override]]
   version = "kubernetes-1.13.1"
   name = "k8s.io/api"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.13.1"
+
+[[override]]
+  name = "k8s.io/apiserver"
+  version = "kubernetes-1.13.1"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.13.1"
 
 [[override]]
  name = "k8s.io/apiextensions-apiserver"
