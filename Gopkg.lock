@@ -10,6 +10,17 @@
   revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
 
 [[projects]]
+  branch = "master"
+  digest = "1:81f8c061c3d18ed1710957910542bc17d2b789c6cd19e0f654c30b35fd255ca5"
+  name = "github.com/Azure/go-ansiterm"
+  packages = [
+    ".",
+    "winterm",
+  ]
+  pruneopts = "NUT"
+  revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
+
+[[projects]]
   digest = "1:76939b72b6b2012e9aca613f33d947099178c9f0d3be5522485701031ebf3e49"
   name = "github.com/NYTimes/gziphandler"
   packages = ["."]
@@ -109,12 +120,14 @@
   revision = "5db89f0ca68677abc5eefce8f2a0a772c98ba52d"
 
 [[projects]]
-  digest = "1:b7831c6e642ffe0fc51b1cf282c878f3814f273e017740d5e2e4811a61b0f0c9"
+  digest = "1:638832070b50826e804c48a37ecc89e872af8ccd6317f385c86c36624fd5a2c5"
   name = "github.com/docker/docker"
-  packages = ["pkg/term"]
+  packages = [
+    "pkg/term",
+    "pkg/term/windows",
+  ]
   pruneopts = "NUT"
-  revision = "a8a31eff10544860d2188dddabdee4d727545796"
-  version = "v1.5.0"
+  revision = "7848b8beb9d38a98a78b75f78e05f8d2255f9dfe"
 
 [[projects]]
   branch = "master"
@@ -467,14 +480,6 @@
   version = "v1.1.5"
 
 [[projects]]
-  digest = "1:4059c14e87a2de3a434430340521b5feece186c1469eff0834c29a63870de3ed"
-  name = "github.com/konsorten/go-windows-terminal-sequences"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242"
-  version = "v1.0.1"
-
-[[projects]]
   digest = "1:5b7d11a9941a975a126f7d79e3871f9201ed715c62af86e9dca1e231cc184192"
   name = "github.com/kubernetes-csi/csi-test"
   packages = [
@@ -686,13 +691,12 @@
   revision = "b1a0a9a36d7453ba0f62578b99712f3a6c5f82d1"
 
 [[projects]]
-  digest = "1:e256b859ab89f005f2f639f5ed9807d0873d9135e27c6382f419b840ff9abe71"
+  digest = "1:b2339e83ce9b5c4f79405f949429a7f68a9a904fed903c672aac1e7ceb7f5f02"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "e1e72e9de974bd926e5c56f83753fba2df402ce5"
-  source = "https://github.com/sirupsen/logrus.git"
-  version = "v1.3.0"
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
 
 [[projects]]
   digest = "1:10dad358673cf6e0ee07c2515cc5776a2b11f4adedf647f397739de850c1e3d7"

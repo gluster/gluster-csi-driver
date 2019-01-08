@@ -23,18 +23,12 @@
   source = "https://github.com/fsnotify/fsnotify.git"
 
 [[override]]
-  name = "github.com/Sirupsen/logrus"
-  source = "https://github.com/sirupsen/logrus.git"
-  version = "v1.3.0"
-
-[[override]]
-  name = "github.com/sirupsen/logrus"
-  source = "https://github.com/sirupsen/logrus.git"
-  version = "v1.3.0"
-
-[[override]]
   revision = "5db89f0ca68677abc5eefce8f2a0a772c98ba52d"
   name = "github.com/docker/distribution"
+
+[[override]]
+  name = "github.com/docker/docker"
+  revision = "7848b8beb9d38a98a78b75f78e05f8d2255f9dfe"
 
 [[override]]
   branch = "release-branch.go1.10"
