@@ -43,6 +43,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&config.RestSecret, "restsecret", "", "glusterd2 rest user secret")
 
+	cmd.PersistentFlags().IntVar(&config.RestTimeout, "resttimeout", 30, "glusterd2 rest client timeout")
+
 	if err := cmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
