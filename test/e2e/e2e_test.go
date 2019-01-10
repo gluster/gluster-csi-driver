@@ -2,12 +2,10 @@ package e2e
 
 import (
 	"flag"
-	"testing"
-
-	"k8s.io/kubernetes/test/e2e/framework"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/kubernetes/test/e2e/framework"
+	"testing"
 )
 
 var viperConfig = flag.String("viper-config", "", "The name of a viper config file (https://github.com/spf13/viper#what-is-viper). All e2e command line parameters can also be configured in such a file. May contain a path and may or may not contain the file suffix. The default is to look for an optional file with `e2e` as base name. If a file is specified explicitly, it must be present.")
