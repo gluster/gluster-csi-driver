@@ -21,6 +21,10 @@ ENV GOPATH="/go/" \
 RUN yum install -y \
     git
 
+# The version of the driver (git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')
+ARG version="(unknown)"
+# Container build time (date -u '+%Y-%m-%dT%H:%M:%S.%NZ')
+ARG builddate="(unknown)"
 # Install go tools
 ARG GO_DEP_VERSION=
 ARG GO_METALINTER_VERSION=latest
@@ -70,9 +74,9 @@ RUN yum -y install glusterfs-fuse && \
 # Copy glusterfs-csi-driver from build phase
 COPY --from=build /build /
 
-# The version of the driver (git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2')
+# The version of the driver
 ARG version="(unknown)"
-# Container build time (date -u '+%Y-%m-%dT%H:%M:%S.%NZ')
+# Container build time
 ARG builddate="(unknown)"
 
 LABEL build-date="${builddate}"
