@@ -8,7 +8,7 @@
     KUBECONFIG=/path/to/kubeconfig
 ```
 
-* Install dependencies with `dep ensure`.
+* Install dependencies with `dep ensure -vendor-only`.
 * Change into this directory `cd test/e2e`.
 * Run the tests with `go test`.
 
