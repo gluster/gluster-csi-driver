@@ -48,7 +48,8 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err = os.MkdirAll(targetPath, 0750); err != nil {
+			// #nosec
+			if err = os.MkdirAll(targetPath, 0777); err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			notMnt = true
@@ -70,19 +71,31 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	ep := req.GetVolumeContext()["glustervol"]
 	source := fmt.Sprintf("%s:%s", gs, ep)
-
-	err = glusterMounter.Mount(source, targetPath, "glusterfs", mo)
+	err = doMount(source, targetPath, mo)
 	if err != nil {
-		if os.IsPermission(err) {
-			return nil, status.Error(codes.PermissionDenied, err.Error())
-		}
-		if strings.Contains(err.Error(), "invalid argument") {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
-		}
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func doMount(source, targetPath string, mo []string) error {
+	err := glusterMounter.Mount(source, targetPath, "glusterfs", mo)
+	if err != nil {
+		if os.IsPermission(err) {
+			return status.Error(codes.PermissionDenied, err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid argument") {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+		return status.Error(codes.Internal, err.Error())
+	}
+	// #nosec
+	err = os.Chmod(targetPath, 0777)
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	return nil
 }
 
 // NodeGetVolumeStats returns volume capacity statistics available for the
