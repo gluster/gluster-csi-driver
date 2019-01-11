@@ -12,7 +12,7 @@
 
 #-- Create build environment
 
-FROM docker.io/openshift/origin-release:golang-1.10 as build
+FROM docker.io/openshift/origin-release:golang-1.11 as build
 
 ENV GOPATH="/go/" \
     SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
