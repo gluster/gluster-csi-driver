@@ -12,7 +12,7 @@ import (
 
 const (
 	glusterfsCSIDriverName    = "org.gluster.glusterfs"
-	glusterfsCSIDriverVersion = "0.0.9"
+	glusterfsCSIDriverVersion = "1.0.0"
 )
 
 // GfDriver is the struct embedding information about the connection to gluster
