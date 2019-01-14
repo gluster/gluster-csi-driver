@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.0-pre.0
+
+* Support for CSI 1.0.0.
+* Kube 1.13.1 support.
+* Added support for Replica Volume Type.
+* Many build enhancements.
+* Log level support for CSI driver deployment.
+* Make gluster rest timeout configurable.
+* Many other bug fixes and code enhancements.
+  Madhu Rajanna <mrajanna@redhat.com>
+
 ## v0.0.9
 
 * Added snapshot functionality.
