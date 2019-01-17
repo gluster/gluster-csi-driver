@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ta-redis
+  labels:
+    name: redis
+spec:
+  containers:
+    - name: redis
+      image: redis
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/mnt/gluster"
+          name: glusterfscsivol
+  volumes:
+    - name: glusterfscsivol
+      persistentVolumeClaim:
+        claimName: glusterfs-csi-thin-pv

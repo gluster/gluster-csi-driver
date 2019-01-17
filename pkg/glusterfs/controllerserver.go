@@ -65,39 +65,87 @@ type ProvisionerConfig struct {
 
 // ParseCreateVolRequest parse incoming volume create request and fill
 // ProvisionerConfig.
+//nolint gocyclo
 func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) (*ProvisionerConfig, error) {
 
-	var reqConf ProvisionerConfig
-	var gdReq api.VolCreateReq
-	var err error
+	var (
+		reqConf ProvisionerConfig
+		gdReq   api.VolCreateReq
+		err     error
+	)
+
 	reqConf.gdVolReq = &gdReq
 
 	replicaCount := defaultReplicaCount
-
 	// Get Volume name
-	if req != nil {
-		reqConf.gdVolReq.Name = req.Name
-	}
+	reqConf.gdVolReq.Name = req.Name
 
 	for k, v := range req.GetParameters() {
-
-		switch strings.ToLower(k) {
-
+		switch k {
 		case "replicas":
 			replicas := v
 			replicaCount, err = parseVolumeParamInt(replicas)
 			if err != nil {
 				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
+		case "arbiterType":
+			if v == "thin" {
+				if err := validateThinArbiter(req); err != nil {
+					return nil, err
+				}
 
+				//if replica count is not specified in request, set it to 2
+				if _, ok := req.Parameters["replicas"]; !ok {
+					replicaCount = 2
+				}
+				if err := addThinArbiter(reqConf.gdVolReq, req.Parameters["arbiterPath"]); err != nil {
+					return nil, err
+				}
+			}
+		case "arbiterPath":
+			if _, ok := req.Parameters["arbiterType"]; !ok {
+				glog.Error("only arbiterPath provided, missing arbiterType")
+			}
+			//skip incase of arbiterPath and arbiterType are provided
 		default:
-			return nil, fmt.Errorf("invalid option %s given for %s CSI driver", k, glusterfsCSIDriverName)
+			glog.Errorf("invalid option specified: %s:%s", k, v)
 		}
 	}
-
-	gdReq.ReplicaCount = replicaCount
-
+	reqConf.gdVolReq.ReplicaCount = replicaCount
 	return &reqConf, nil
+}
+
+func validateThinArbiter(req *csi.CreateVolumeRequest) error {
+	if _, ok := req.Parameters["arbiterPath"]; ok {
+		rc, ok := req.Parameters["replicas"]
+		if ok {
+			count, err := strconv.ParseInt(rc, 10, 32)
+			if err != nil {
+				return err
+			}
+			if count != 2 {
+				return errors.New("thin arbiter can only be enabled for replica count 2")
+			}
+		}
+	} else {
+		return errors.New("thin arbiterPath not specified")
+	}
+	return nil
+}
+
+func addThinArbiter(req *api.VolCreateReq, thinArbiter string) error {
+
+	s := strings.Split(thinArbiter, ":")
+	if len(s) != 2 && len(s) != 3 {
+		return fmt.Errorf("thin arbiter brick must be of the form <host>:<brick> or <host>:<brick>:<port>")
+	}
+
+	req.Options = map[string]string{
+		"replicate.thin-arbiter": thinArbiter,
+	}
+	req.AllowAdvanced = true
+
+	return nil
 }
 
 func parseVolumeParamInt(valueString string) (int, error) {
@@ -132,8 +180,13 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// parse the request.
 	parseResp, err := cs.ParseCreateVolRequest(req)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "failed to parse request")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse request %v", err)
 	}
+	//Add metadata and size to volume create request
+	volMetaMap := make(map[string]string)
+	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
+	parseResp.gdVolReq.Metadata = volMetaMap
+	parseResp.gdVolReq.Size = uint64(volSizeBytes)
 
 	volumeName := parseResp.gdVolReq.Name
 
@@ -153,7 +206,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			}
 		} else {
 			// If volume does not exist, provision volume
-			err = cs.doVolumeCreate(volumeName, volSizeBytes)
+			err = cs.doVolumeCreate(parseResp.gdVolReq)
 			if err != nil {
 				return nil, err
 			}
@@ -259,19 +312,11 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 	return nil
 }
 
-func (cs *ControllerServer) doVolumeCreate(volumeName string, volSizeBytes int64) error {
-	glog.V(4).Infof("received request to create volume %s with size %d", volumeName, volSizeBytes)
-	volMetaMap := make(map[string]string)
-	volMetaMap[volumeOwnerAnn] = glusterfsCSIDriverName
-	volumeReq := api.VolCreateReq{
-		Name:         volumeName,
-		Metadata:     volMetaMap,
-		ReplicaCount: defaultReplicaCount,
-		Size:         uint64(volSizeBytes),
-	}
+func (cs *ControllerServer) doVolumeCreate(volumeReq *api.VolCreateReq) error {
+	glog.V(4).Infof("received request to create volume %s with size %d", volumeReq.Name, volumeReq.Size)
 
 	glog.V(2).Infof("volume create request: %+v", volumeReq)
-	volumeCreateResp, err := cs.client.VolumeCreate(volumeReq)
+	volumeCreateResp, err := cs.client.VolumeCreate(*volumeReq)
 	if err != nil {
 		glog.Errorf("failed to create volume: %v", err)
 		errResp := cs.client.LastErrorResponse()

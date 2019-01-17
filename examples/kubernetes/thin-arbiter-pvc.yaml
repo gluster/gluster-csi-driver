@@ -2,9 +2,9 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: glusterfs-csi-pv
+  name: glusterfs-csi-thin-pv
 spec:
-  storageClassName: glusterfs-csi
+  storageClassName: glusterfs-csi-arbiter
   accessModes:
     - ReadWriteMany
   resources:
