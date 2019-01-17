@@ -89,6 +89,18 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
 
+		case "arbiterType":
+			if v == "thin" {
+				if err := validateThinArbiter(req); err != nil {
+					return nil, err
+				}
+
+				if err := addThinArbiter(reqConf.gdVolReq, req.Parameters["arbiterPath"]); err != nil {
+					return nil, err
+				}
+
+			}
+
 		default:
 			return nil, fmt.Errorf("invalid option %s given for %s CSI driver", k, glusterfsCSIDriverName)
 		}
@@ -97,6 +109,42 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	gdReq.ReplicaCount = replicaCount
 
 	return &reqConf, nil
+}
+
+func validateThinArbiter(req *csi.CreateVolumeRequest) error {
+	if _, ok := req.Parameters["arbiterPath"]; ok {
+		rc, ok := req.Parameters["replicas"]
+		if ok {
+			count, err := strconv.ParseInt(rc, 10, 32)
+			if err != nil {
+				return err
+			}
+			if count != 2 {
+				return errors.New("thin arbiter can only be enabled for replica count 2")
+			}
+		} else {
+			return errors.New("thin arbiter can only be enabled for replica count 2")
+		}
+
+	} else {
+		return errors.New("thin arbiterPath not specified")
+	}
+	return nil
+}
+
+func addThinArbiter(req *api.VolCreateReq, thinArbiter string) error {
+
+	s := strings.Split(thinArbiter, ":")
+	if len(s) != 2 && len(s) != 3 {
+		return fmt.Errorf("thin arbiter brick must be of the form <host>:<brick> or <host>:<brick>:<port>")
+	}
+
+	req.Options = map[string]string{
+		"replicate.thin-arbiter": thinArbiter,
+	}
+	req.AllowAdvanced = true
+	
+	return nil
 }
 
 func parseVolumeParamInt(valueString string) (int, error) {
