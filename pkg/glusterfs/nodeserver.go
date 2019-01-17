@@ -8,6 +8,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -35,7 +36,7 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 // NodePublishVolume mounts the volume mounted to the staging path to the target
 // path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	glog.V(2).Infof("received node publish volume request %+v", req)
+	glog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
 
 	if err := ns.validateNodePublishVolumeReq(req); err != nil {
 		return nil, err

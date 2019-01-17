@@ -71,6 +71,7 @@
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = [
+    "descriptor",
     "proto",
     "protoc-gen-go/descriptor",
     "ptypes",
@@ -168,6 +169,12 @@
   packages = ["."]
   revision = "1624edc4454b8682399def8740d46db5e4362ba4"
   version = "v1.1.5"
+
+[[projects]]
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  packages = ["protosanitizer"]
+  revision = "5853414e1d4771302e0df10d1870c444c2135799"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/kubernetes-csi/csi-test"
@@ -835,6 +842,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0daf5c0ed4325b3f09bfcf33bc863bbf9f43d1606228ffdff97f81000d619994"
+  inputs-digest = "b339f20aa5308eeb75cc8f2015d874c3b381dc97767564defefdd7257aefa2ce"
   solver-name = "gps-cdcl"
   solver-version = 1

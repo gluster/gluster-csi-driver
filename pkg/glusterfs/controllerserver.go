@@ -15,6 +15,7 @@ import (
 	gd2Error "github.com/gluster/glusterd2/pkg/errors"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -118,7 +119,7 @@ func parseVolumeParamInt(valueString string) (int, error) {
 
 // CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	glog.V(2).Infof("request received %+v", req)
+	glog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
 
 	if err := cs.validateCreateVolumeReq(req); err != nil {
 		return nil, err
@@ -185,7 +186,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		},
 	}
 
-	glog.V(4).Infof("CSI volume response: %+v", resp)
+	glog.V(4).Infof("CSI volume response: %+v", protosanitizer.StripSecrets(resp))
 	return resp, nil
 }
 
