@@ -116,9 +116,8 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: glusterfs-csi-pv
-  annotations:
-    storageClassName: glusterfs-csi
 spec:
+  storageClassName: glusterfs-csi
   accessModes:
   - ReadWriteMany
   resources:
@@ -445,4 +444,100 @@ root@redis-pvc-restore:/mnt/gluster# ls
 clone_data
 root@redis-pvc-restore:/mnt/gluster# cat clone_data
 glusterfs csi clone test
+```
+
+#### Create PVC with thin arbiter support
+
+follow [guide](
+  https://docs.gluster.org/en/latest/Administrator%20Guide/Thin-Arbiter-Volumes/)
+to setup thin arbiter
+
+### Create Thin-Arbiter storage class
+
+```
+$ cat thin-arbiter-storageclass.yaml
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: glusterfs-csi-thin-arbiter
+provisioner: org.gluster.glusterfs
+parameters:
+  arbiterType: "thin"
+  arbiterPath: "192.168.10.90:24007/mnt/arbiter-path"
+```
+
+```
+$ kubectl create -f thin-arbiter-storageclass.yaml
+storageclass.storage.k8s.io/glusterfs-csi-thin-arbiter created
+```
+
+### Create Thin-Arbiter PersistentVolumeClaim
+
+```
+$ cat thin-arbiter-pvc.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: glusterfs-csi-thin-pv
+spec:
+  storageClassName: glusterfs-csi-thin-arbiter
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+```
+$ kube create -f thin-arbiter-pvc.yaml
+persistentvolumeclaim/glusterfs-csi-thin-pv created
+```
+
+Verify PVC is in Bound state
+
+```
+$ kube get pvc
+NAME                     STATUS        VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS            AGE
+glusterfs-csi-thin-pv    Bound         pvc-86b3b70b-1fa0-11e9-9232-525400ea010d   5Gi        RWX            glusterfs-csi-arbiter   13m
+
+```
+
+### Create an app with claim
+
+```
+$ cat thin-arbiter-pod.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ta-redis
+  labels:
+    name: redis
+spec:
+  containers:
+    - name: redis
+      image: redis
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/mnt/gluster"
+          name: glusterfscsivol
+  volumes:
+    - name: glusterfscsivol
+      persistentVolumeClaim:
+        claimName: glusterfs-csi-thin-pv
+```
+
+```
+$ kube create -f thin-arbiter-pod.yaml
+pod/ta-redis created
+```
+
+Verify app is in running state
+
+```
+$ kube get po
+NAME        READY   STATUS        RESTARTS   AGE
+ta-redis    1/1     Running       0          6m54s
 ```
