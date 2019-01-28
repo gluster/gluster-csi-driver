@@ -1,9 +1,9 @@
-package glusterfs
+package glustervirtblock
 
 import (
 	"time"
 
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
+	"github.com/gluster/gluster-csi-driver/pkg/gluster-virtblock/config"
 
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
@@ -11,12 +11,11 @@ import (
 )
 
 const (
-	glusterfsCSIDriverName    = "org.gluster.glusterfs"
-	glusterfsCSIDriverVersion = "1.0.0"
+	glusterBlockCSIDriverName    = "org.gluster.glustervirtblock"
+	glusterBlockCSIDriverVersion = "1.0.0"
 )
 
-// GfDriver is the struct embedding information about the connection to gluster
-// cluster and configuration of CSI driver.
+// GfDriver is the struct embedding information about the connection to gluster cluster and configuration of CSI driver.
 type GfDriver struct {
 	client *restclient.Client
 	*config.Config
@@ -27,7 +26,7 @@ func New(config *config.Config) *GfDriver {
 	gfd := &GfDriver{}
 
 	if config == nil {
-		glog.Errorf("GlusterFS CSI driver initialization failed")
+		glog.Errorf("GlusterFS Block CSI driver initialization failed")
 		return nil
 	}
 
@@ -45,34 +44,33 @@ func New(config *config.Config) *GfDriver {
 		return nil
 	}
 
-	glog.V(1).Infof("GlusterFS CSI driver initialized")
+	glog.V(1).Infof("GlusterFS Block CSI driver initialized")
 
 	return gfd
 }
 
-// NewControllerServer initialize a controller server for GlusterFS CSI driver.
+// NewControllerServer initialize a controller server for GlusterFS Block CSI driver.
 func NewControllerServer(g *GfDriver) *ControllerServer {
 	return &ControllerServer{
 		GfDriver: g,
 	}
 }
 
-// NewNodeServer initialize a node server for GlusterFS CSI driver.
+// NewNodeServer initialize a node server for GlusterFS Block CSI driver.
 func NewNodeServer(g *GfDriver) *NodeServer {
 	return &NodeServer{
 		GfDriver: g,
 	}
 }
 
-// NewIdentityServer initialize an identity server for GlusterFS CSI driver.
+// NewIdentityServer initialize an identity server for GlusterFS Block CSI driver.
 func NewIdentityServer(g *GfDriver) *IdentityServer {
 	return &IdentityServer{
 		GfDriver: g,
 	}
 }
 
-// Run start a non-blocking grpc controller,node and identityserver for
-// GlusterFS CSI driver which can serve multiple parallel requests
+// Run start a non-blocking grpc controller,node and identityserver for GlusterFS Block CSI driver which can serve multiple parallel requests
 func (g *GfDriver) Run() {
 	srv := csicommon.NewNonBlockingGRPCServer()
 	srv.Start(g.Endpoint, NewIdentityServer(g), NewControllerServer(g), NewNodeServer(g))
