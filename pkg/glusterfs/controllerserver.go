@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/utils"
+	"github.com/gluster/gluster-csi-driver/pkg/utils"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/glusterd2/pkg/api"
@@ -221,7 +221,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
 	}
 
-	glusterServer, bkpServers, err := cs.getClusterNodes()
+	glusterServer, bkpServers, err := utils.GetClusterNodes(cs.client)
 	if err != nil {
 		glog.Errorf("failed to get cluster nodes: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get cluster nodes: %v", err)
@@ -366,34 +366,6 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes 
 	glog.Infof("requested volume %s already exists in the gluster cluster", volumeName)
 
 	return nil
-}
-
-func (cs *ControllerServer) getClusterNodes() (string, []string, error) {
-	peers, err := cs.client.Peers()
-	if err != nil {
-		return "", nil, err
-	}
-	glusterServer := ""
-	bkpservers := []string{}
-
-	for i, p := range peers {
-		if i == 0 {
-			for _, a := range p.PeerAddresses {
-				ip := strings.Split(a, ":")
-				glusterServer = ip[0]
-			}
-
-			continue
-		}
-		for _, a := range p.PeerAddresses {
-			ip := strings.Split(a, ":")
-			bkpservers = append(bkpservers, ip[0])
-		}
-
-	}
-	glog.V(2).Infof("primary and backup gluster servers [%+v,%+v]", glusterServer, bkpservers)
-
-	return glusterServer, bkpservers, err
 }
 
 // DeleteVolume deletes the given volume.
