@@ -32,7 +32,7 @@ To build, ensure docker is installed, and run:
 [root@localhost]# cd gluster-csi-driver
 ```
 
-1. Build the glusterfs-csi-driver container
+1. Build the glusterfs-csi-driver container (note, you need docker > 17.05 for multistage builds)
 
 ```
 [root@localhost]# ./build.sh
