@@ -65,18 +65,16 @@ type ProvisionerConfig struct {
 
 // ParseCreateVolRequest parse incoming volume create request and fill
 // ProvisionerConfig.
-//nolint gocyclo
 func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) (*ProvisionerConfig, error) {
 
 	var (
 		reqConf ProvisionerConfig
 		gdReq   api.VolCreateReq
-		err     error
 	)
 
 	reqConf.gdVolReq = &gdReq
 
-	replicaCount := defaultReplicaCount
+	reqConf.gdVolReq.ReplicaCount = defaultReplicaCount
 	// Get Volume name
 	reqConf.gdVolReq.Name = req.Name
 
@@ -84,21 +82,14 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 		switch k {
 		case "replicas":
 			replicas := v
-			replicaCount, err = parseVolumeParamInt(replicas)
+			replicaCount, err := parseVolumeParamInt(replicas)
 			if err != nil {
 				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
+			reqConf.gdVolReq.ReplicaCount = replicaCount
 		case "arbiterType":
 			if v == "thin" {
-				if err := validateThinArbiter(req); err != nil {
-					return nil, err
-				}
-
-				//if replica count is not specified in request, set it to 2
-				if _, ok := req.Parameters["replicas"]; !ok {
-					replicaCount = 2
-				}
-				if err := addThinArbiter(reqConf.gdVolReq, req.Parameters["arbiterPath"]); err != nil {
+				if err := addThinArbiter(reqConf.gdVolReq, req); err != nil {
 					return nil, err
 				}
 			}
@@ -111,7 +102,7 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 			glog.Errorf("invalid option specified: %s:%s", k, v)
 		}
 	}
-	reqConf.gdVolReq.ReplicaCount = replicaCount
+
 	return &reqConf, nil
 }
 
@@ -133,17 +124,23 @@ func validateThinArbiter(req *csi.CreateVolumeRequest) error {
 	return nil
 }
 
-func addThinArbiter(req *api.VolCreateReq, thinArbiter string) error {
+func addThinArbiter(volReq *api.VolCreateReq, req *csi.CreateVolumeRequest) error {
 
+	if err := validateThinArbiter(req); err != nil {
+		return err
+	}
+
+	thinArbiter := req.Parameters["arbiterPath"]
 	s := strings.Split(thinArbiter, ":")
 	if len(s) != 2 && len(s) != 3 {
 		return fmt.Errorf("thin arbiter brick must be of the form <host>:<brick> or <host>:<brick>:<port>")
 	}
 
-	req.Options = map[string]string{
+	volReq.ReplicaCount = 2
+	volReq.Options = map[string]string{
 		"replicate.thin-arbiter": thinArbiter,
 	}
-	req.AllowAdvanced = true
+	volReq.AllowAdvanced = true
 
 	return nil
 }
