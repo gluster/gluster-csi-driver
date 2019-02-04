@@ -58,11 +58,12 @@ RUN ldd /build/glusterfs-csi-driver | grep -q "not a dynamic executable"
 
 #-- Final container
 
-FROM docker.io/centos:7.6.1810 as final
+FROM docker.io/centos:7 as final
 
 # Install dependencies
 ADD http://artifacts.ci.centos.org/gluster/nightly/master.repo  /etc/yum.repos.d/glusterfs-nightly.repo
-RUN yum -y install glusterfs-fuse && \
+RUN yum update -y && \
+    yum -y install glusterfs-fuse && \
     yum clean all -y && \
     rm -rf /var/cache/yum && \
     rpm -qa | grep gluster | tee /gluster-rpm-versions.txt
