@@ -12,5 +12,6 @@ yum-config-manager \
 yum -y install buildah docker-ce
 systemctl start docker
 
-# Build containers
-./build.sh
+# Build glusterfs and glustervirtblock containers
+./build.sh glusterfs
+./build.sh glustervirtblock
