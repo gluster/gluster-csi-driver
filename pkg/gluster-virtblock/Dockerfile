@@ -58,10 +58,11 @@ RUN ldd /build/glustervirtblock-csi-driver | grep -q "not a dynamic executable"
 
 #-- Final container
 
-FROM docker.io/centos:7.5.1804 as final
+FROM docker.io/centos:7 as final
 
 # Install dependencies
-RUN yum -y install centos-release-gluster && \
+RUN yum update -y && \
+    yum -y install centos-release-gluster && \
     yum -y install glusterfs-fuse xfsdump xfsprogs -y && \
     yum clean all -y && \
     rm -rf /var/cache/yum && \
