@@ -26,7 +26,7 @@ jobs:
         - provider: script
           on:  # yamllint disable-line rule:truthy
             branch: master
-          script: >
+          script: >-
             .travis/push_container.sh
             gluster/glusterfs-csi-driver
             verbatim latest
@@ -36,7 +36,7 @@ jobs:
           on:  # yamllint disable-line rule:truthy
             tags: true
             condition: $TRAVIS_TAG =~ ^v[0-9]+
-          script: >
+          script: >-
             .travis/push_container.sh
             gluster/glusterfs-csi-driver
             version "$TRAVIS_TAG"
@@ -48,7 +48,7 @@ jobs:
         - provider: script
           on:  # yamllint disable-line rule:truthy
             branch: master
-          script: >
+          script: >-
             .travis/push_container.sh
             gluster/glustervirtblock-csi-driver
             verbatim latest
@@ -58,7 +58,7 @@ jobs:
           on:  # yamllint disable-line rule:truthy
             tags: true
             condition: $TRAVIS_TAG =~ ^v[0-9]+
-          script: >
+          script: >-
             .travis/push_container.sh
             gluster/glustervirtblock-csi-driver
             version "$TRAVIS_TAG"
