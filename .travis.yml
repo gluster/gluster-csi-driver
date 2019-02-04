@@ -9,13 +9,56 @@ addons:
       - realpath
       - ruby
 
-install:
-  - gem install asciidoctor mdl
-  - pip install --user --upgrade pip
-  - pip install --user yamllint
-
-script:
-  # Lint text-like files
-  - scripts/lint-text.sh --require-all
-  # Build container w/ Docker
-  - ./build.sh
+jobs:
+  include:
+    - name: Linter
+      install:
+        - gem install asciidoctor mdl
+        - pip install --user --upgrade pip
+        - pip install --user yamllint
+      script:
+        - scripts/lint-text.sh --require-all
+    - name: glusterfs-csi-driver
+      script:
+        - ./build.sh glusterfs
+      deploy:
+        # Master branch will push the container to :latest
+        - provider: script
+          on:  # yamllint disable-line rule:truthy
+            branch: master
+          script: >
+            .travis/push_container.sh
+            gluster/glusterfs-csi-driver
+            verbatim latest
+        # Tags of the form v + SEMVER (e.g., v1.2.3) will push to the
+        # corresponding container version number (e.g., :1.2.3).
+        - provider: script
+          on:  # yamllint disable-line rule:truthy
+            tags: true
+            condition: $TRAVIS_TAG =~ ^v[0-9]+
+          script: >
+            .travis/push_container.sh
+            gluster/glusterfs-csi-driver
+            version "$TRAVIS_TAG"
+    - name: glustervirtblock-csi-driver
+      script:
+        - ./build.sh glustervirtblock
+      deploy:
+        # Master branch will push the container to :latest
+        - provider: script
+          on:  # yamllint disable-line rule:truthy
+            branch: master
+          script: >
+            .travis/push_container.sh
+            gluster/glustervirtblock-csi-driver
+            verbatim latest
+        # Tags of the form v + SEMVER (e.g., v1.2.3) will push to the
+        # corresponding container version number (e.g., :1.2.3).
+        - provider: script
+          on:  # yamllint disable-line rule:truthy
+            tags: true
+            condition: $TRAVIS_TAG =~ ^v[0-9]+
+          script: >
+            .travis/push_container.sh
+            gluster/glustervirtblock-csi-driver
+            version "$TRAVIS_TAG"

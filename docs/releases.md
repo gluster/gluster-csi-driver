@@ -45,8 +45,10 @@ and it must be backward compatible.
 
 ## Tagging repositories
 
-The tag name (`$tag` in the previous example) must conform
-to the [versioning](#versioning) requirements (e.g. `1.0.0-rc2`).
+The tag name must begin with "v" followed by the version number, conforming to
+the [versioning](#versioning) requirements (e.g. a tag of `v1.0.0-rc2` for
+version `1.0.0-rc2`). This tag format is used by the Travis CI infrastructure to
+properly upload and tag releases to Quay and Docker Hub.
 
 ## Release process
 

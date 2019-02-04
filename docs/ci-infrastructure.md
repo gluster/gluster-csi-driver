@@ -15,17 +15,19 @@ The tests that are run include:
 - Running linters over the text-like files in the repo (bash, md, yaml, etc.)
 - Building the code with recent versions of golang
 - Running a number of code linters over the source (via [gometalinter](https://github.com/alecthomas/gometalinter))
-- Building the container image via Docker
+- Building the container images via Docker
 
 ### Configuration
 
 The configuration for Travis is controlled by the
 [.travis.yml](https://github.com/gluster/gluster-csi-driver/blob/master/.travis.yml)
-file in the main directory of the repo. Briefly, there is one job for each
-golang version listed in the file. Within each job, the "install" steps are
-executed in order, followed by the "script" steps. If any command fails, the
-job will register a failure. See the main Travis documentation for details on
-the configuration file.
+file in the main directory of the repo. Briefly, there is one job for each type
+of CSI driver. Within each job, the "install" steps are executed in order,
+followed by the "script" steps. If the CI job is running against `master` or a
+tag of the form 'v[0-9]+', the deploy step will execute, pushing the built
+containers to both Quay and Docker hub. If any command fails, the job will
+register a failure. See the main Travis documentation for details on the
+configuration file.
 
 ### Troubleshooting
 

@@ -7,7 +7,7 @@ if [[ -x "$(command -v gometalinter)" ]]; then
     --sort path --sort line --sort column --deadline=24h \
     --enable="gofmt" --exclude "method NodeGetId should be NodeGetID" \
     --vendor --debug "${@-./...}" \
-  |& stdbuf -oL grep "linter took\\|:warning:\\|:error:"
+  |& stdbuf -oL awk '/linter took/ || !/^DEBUG/ || /nolint:/'
 else
   echo "WARNING: gometalinter not found, skipping lint tests" >&2
 fi
