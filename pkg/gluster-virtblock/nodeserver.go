@@ -7,10 +7,10 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/gluster-csi-driver/pkg/utils"
-	"github.com/golang/glog"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume/util"
 )
@@ -34,7 +34,7 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 // NodePublishVolume mounts the volume mounted to the staging path to the target path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	glog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
+	klog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
 
 	err := ns.validateNodePublishVolumeReq(req)
 	if err != nil {
@@ -56,7 +56,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	srcPath := path.Join(hostPath, req.GetVolumeId())
 
 	if _, err = os.Stat(srcPath); os.IsNotExist(err) {
-		glog.Errorf("Block volume doesn't exist: %v", err)
+		klog.Errorf("Block volume doesn't exist: %v", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -104,7 +104,7 @@ func (ns *NodeServer) validateNodePublishVolumeReq(req *csi.NodePublishVolumeReq
 
 // NodeUnpublishVolume unmounts the volume from the target path
 func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	glog.V(2).Infof("received node unpublish volume request %+v", protosanitizer.StripSecrets(req))
+	klog.V(2).Infof("received node unpublish volume request %+v", protosanitizer.StripSecrets(req))
 
 	if err := ns.validateNodeUnpublishVolumeReq(req); err != nil {
 		return nil, err

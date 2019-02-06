@@ -9,10 +9,10 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	bapi "github.com/gluster/glusterd2/plugins/blockvolume/api"
-	"github.com/golang/glog"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/klog"
 )
 
 const (
@@ -45,13 +45,13 @@ type CsiDrvParam struct {
 
 // CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	glog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
+	klog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
 
 	if err := cs.validateCreateVolumeReq(req); err != nil {
 		return nil, err
 	}
 
-	glog.V(1).Infof("creating volume with name %s", req.Name)
+	klog.V(1).Infof("creating volume with name %s", req.Name)
 
 	volumeName := req.Name
 	volSizeBytes := cs.getVolumeSize(req)
@@ -68,10 +68,10 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		BlockVolumeInfo: &blockVolInfo,
 	}
 
-	glog.V(2).Infof("block volume create request: %+v", volumeReq)
+	klog.V(2).Infof("block volume create request: %+v", volumeReq)
 	blockVolCreateResp, err := cs.client.BlockVolumeCreate(virtBlockProvider, volumeReq)
 	if err != nil {
-		glog.Errorf("failed to create block volume: %s err: %v", volumeName, err)
+		klog.Errorf("failed to create block volume: %s err: %v", volumeName, err)
 		errResp := cs.client.LastErrorResponse()
 		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusConflict {
@@ -83,11 +83,11 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	glusterServer, bkpServers, err := utils.GetClusterNodes(cs.client)
 	if err != nil {
-		glog.Errorf("failed to get cluster nodes: %v", err)
+		klog.Errorf("failed to get cluster nodes: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get cluster nodes: %v", err)
 	}
 
-	glog.V(3).Infof("blockvolume create response : %+v", blockVolCreateResp)
+	klog.V(3).Infof("blockvolume create response : %+v", blockVolCreateResp)
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      volumeName,
@@ -100,7 +100,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		},
 	}
 
-	glog.V(4).Infof("CSI block volume response: %+v", protosanitizer.StripSecrets(resp))
+	klog.V(4).Infof("CSI block volume response: %+v", protosanitizer.StripSecrets(resp))
 	return resp, nil
 }
 
@@ -139,7 +139,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "volume ID is nil")
 	}
-	glog.V(2).Infof("deleting block volume with ID: %s", volumeID)
+	klog.V(2).Infof("deleting block volume with ID: %s", volumeID)
 
 	// Delete volume
 	err := cs.client.BlockVolumeDelete(virtBlockProvider, volumeID)
@@ -149,11 +149,11 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		glog.Errorf("deleting block volume %s failed: %v", req.VolumeId, err)
+		klog.Errorf("deleting block volume %s failed: %v", req.VolumeId, err)
 		return nil, status.Errorf(codes.Internal, "deleting volume %s failed: %v", req.VolumeId, err)
 	}
 
-	glog.Infof("successfully deleted block volume %s", volumeID)
+	klog.Infof("successfully deleted block volume %s", volumeID)
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
@@ -231,7 +231,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		},
 	}
 
-	glog.V(1).Infof("GlusterFS Block CSI driver volume capabilities: %+v", resp)
+	klog.V(1).Infof("GlusterFS Block CSI driver volume capabilities: %+v", resp)
 	return resp, nil
 }
 

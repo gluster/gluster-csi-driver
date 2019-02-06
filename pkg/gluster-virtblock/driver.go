@@ -6,8 +6,8 @@ import (
 	"github.com/gluster/gluster-csi-driver/pkg/gluster-virtblock/config"
 
 	"github.com/gluster/glusterd2/pkg/restclient"
-	"github.com/golang/glog"
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"k8s.io/klog"
 )
 
 const (
@@ -26,7 +26,7 @@ func New(config *config.Config) *GfDriver {
 	gfd := &GfDriver{}
 
 	if config == nil {
-		glog.Errorf("GlusterFS Block CSI driver initialization failed")
+		klog.Errorf("GlusterFS Block CSI driver initialization failed")
 		return nil
 	}
 
@@ -40,11 +40,11 @@ func New(config *config.Config) *GfDriver {
 		restclient.WithDebugRoundTripper())
 
 	if err != nil {
-		glog.Errorf("error creating glusterd2 REST client: %s", err.Error())
+		klog.Errorf("error creating glusterd2 REST client: %s", err.Error())
 		return nil
 	}
 
-	glog.V(1).Infof("GlusterFS Block CSI driver initialized")
+	klog.V(1).Infof("GlusterFS Block CSI driver initialized")
 
 	return gfd
 }
