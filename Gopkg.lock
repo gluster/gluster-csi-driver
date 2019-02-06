@@ -934,8 +934,7 @@
   name = "k8s.io/klog"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "a5bc97fbc634d635061f3146511332c7e313a55a"
-  version = "v0.1.0"
+  revision = "8139d8cb77af419532b33dfa7dd09fbc5f1d344f"
 
 [[projects]]
   branch = "master"
@@ -1006,6 +1005,7 @@
     "github.com/spf13/cobra",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/status",
+    "k8s.io/klog",
     "k8s.io/kubernetes/pkg/util/mount",
     "k8s.io/kubernetes/pkg/volume/util",
   ]
