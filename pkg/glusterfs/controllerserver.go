@@ -26,6 +26,9 @@ const (
 	defaultReplicaCount       = 3
 	minReplicaCount           = 1
 	maxReplicaCount           = 10
+	defaultBrickType          = "lvm"
+	brickTypeLoop             = "loop"
+	brickTypeLvm              = "lvm"
 )
 
 var errVolumeNotFound = errors.New("volume not found")
@@ -63,6 +66,14 @@ type ProvisionerConfig struct {
 	// csiConf  *CsiDrvParam
 }
 
+func setBrickType(reqConf *ProvisionerConfig, value string) error {
+	if value != brickTypeLoop && value != brickTypeLvm {
+		return errors.New("invalid brick provisioner type")
+	}
+	reqConf.gdVolReq.ProvisionerType = value
+	return nil
+}
+
 // ParseCreateVolRequest parse incoming volume create request and fill
 // ProvisionerConfig.
 func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) (*ProvisionerConfig, error) {
@@ -70,6 +81,7 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	var (
 		reqConf ProvisionerConfig
 		gdReq   api.VolCreateReq
+		err     error
 	)
 
 	reqConf.gdVolReq = &gdReq
@@ -77,29 +89,30 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	reqConf.gdVolReq.ReplicaCount = defaultReplicaCount
 	// Get Volume name
 	reqConf.gdVolReq.Name = req.Name
+	// Brick Provisioner Type
+	reqConf.gdVolReq.ProvisionerType = defaultBrickType
 
 	for k, v := range req.GetParameters() {
 		switch k {
 		case "replicas":
 			replicas := v
-			replicaCount, err := parseVolumeParamInt(replicas)
-			if err != nil {
-				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
-			}
-			reqConf.gdVolReq.ReplicaCount = replicaCount
+			reqConf.gdVolReq.ReplicaCount, err = parseVolumeParamInt(k, replicas)
 		case "arbiterType":
 			if v == "thin" {
-				if err := addThinArbiter(reqConf.gdVolReq, req); err != nil {
-					return nil, err
-				}
+				err = addThinArbiter(reqConf.gdVolReq, req)
 			}
 		case "arbiterPath":
 			if _, ok := req.Parameters["arbiterType"]; !ok {
 				glog.Error("only arbiterPath provided, missing arbiterType")
 			}
 			//skip incase of arbiterPath and arbiterType are provided
+		case "brickType":
+			err = setBrickType(&reqConf, v)
 		default:
 			glog.Errorf("invalid option specified: %s:%s", k, v)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -145,18 +158,18 @@ func addThinArbiter(volReq *api.VolCreateReq, req *csi.CreateVolumeRequest) erro
 	return nil
 }
 
-func parseVolumeParamInt(valueString string) (int, error) {
-
+func parseVolumeParamInt(key, valueString string) (int, error) {
+	errPrefix := fmt.Sprintf("invalid value for parameter '%s'", key)
 	count, err := strconv.Atoi(valueString)
 	if err != nil {
-		return 0, fmt.Errorf("value '%s' must be an integer between %d and %d", valueString, minReplicaCount, maxReplicaCount)
+		return 0, fmt.Errorf("%s, value '%s' must be an integer between %d and %d", errPrefix, valueString, minReplicaCount, maxReplicaCount)
 	}
 
 	if count < minReplicaCount {
-		return 0, fmt.Errorf("value '%s' must be >= %v", valueString, minReplicaCount)
+		return 0, fmt.Errorf("%s, value '%s' must be >= %v", errPrefix, valueString, minReplicaCount)
 	}
 	if count > maxReplicaCount {
-		return 0, fmt.Errorf("value '%s' must be <= %v", valueString, maxReplicaCount)
+		return 0, fmt.Errorf("%s, value '%s' must be <= %v", errPrefix, valueString, maxReplicaCount)
 	}
 
 	return count, nil

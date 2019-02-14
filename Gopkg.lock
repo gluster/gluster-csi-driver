@@ -43,7 +43,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4e3b3219f72e9603e9966c32878de84bbfd9d2fc5707fcd50a2ea94fd4a7b60a"
+  digest = "1:fccd76e2ec9df3825e1c59832d0117e05f2d303f18febb28139bb7df2a14f6d9"
   name = "github.com/gluster/glusterd2"
   packages = [
     "pkg/api",
@@ -56,9 +56,10 @@
     "plugins/events/api",
     "plugins/georeplication/api",
     "plugins/glustershd/api",
+    "plugins/tracemgmt/api",
   ]
   pruneopts = "NUT"
-  revision = "445cdb9256c30f1992a47149bfa613f314eac5f9"
+  revision = "17bc6f49cc90b46664f05697e92dba897194bc4a"
 
 [[projects]]
   digest = "1:abea725bcf0210887f5da19d804fffa1dd45a42a56bdf5f02322345e3fee4f0d"
