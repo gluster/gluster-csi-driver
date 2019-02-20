@@ -633,6 +633,61 @@ root@redis-pvc-restore:/mnt/gluster# cat clone_data
 glusterfs csi clone test
 ```
 
+### Create a glusterfs lite storage class to use loopback bricks (RWX)
+
+```
+[root@localhost]# cat glusterfs-lite-storage-class.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: glusterfs-lite-csi
+provisioner: org.gluster.glusterfs
+parameters:
+  brickType: "loop"
+```
+
+```
+[root@localhost]# kubectl create -f glusterfs-lite-storage-class.yaml
+storageclass.storage.k8s.io/glusterfs-lite-csi created
+```
+
+Verify glusterfs storage class (RWX)
+
+```
+[root@localhost]# kubectl get storageclass
+NAME                      PROVISIONER             AGE
+glusterfs-lite-csi        org.gluster.glusterfs   105s
+```
+
+### Create RWX PersistentVolumeClaim using glusterfs-lite-csi storage class
+
+```
+[root@localhost]# cat pvc.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: glusterfs-lite-csi-pv
+spec:
+  storageClassName: glusterfs-lite-csi
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+
+[root@localhost]# kubectl create -f pvc.yaml
+persistentvolumeclaim/glusterfs-lite-csi-pv created
+```
+
+Validate the RWX claim creation
+
+```
+[root@localhost]# kubectl get pvc
+NAME                    STATUS    VOLUME                 CAPACITY   ACCESS MODES   STORAGECLASS         AGE
+glusterfs-lite-csi-pv   Bound     pvc-943d21f5a51312e7   5Gi        RWX            glusterfs-lite-csi   5s
+```
+
 #### Create PVC with thin arbiter support
 
 follow [guide](
