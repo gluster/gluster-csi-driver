@@ -24,8 +24,6 @@ const (
 	volumeOwnerAnn            = "VolumeOwner"
 	defaultVolumeSize   int64 = 1000 * utils.MB // default volume size ie 1 GB
 	defaultReplicaCount       = 3
-	minReplicaCount           = 1
-	maxReplicaCount           = 10
 	defaultBrickType          = "lvm"
 	brickTypeLoop             = "loop"
 	brickTypeLvm              = "lvm"
@@ -96,7 +94,7 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 		switch k {
 		case "replicas":
 			replicas := v
-			reqConf.gdVolReq.ReplicaCount, err = parseVolumeParamInt(k, replicas)
+			reqConf.gdVolReq.ReplicaCount, err = utils.ParseVolumeParamInt(k, replicas)
 		case "arbiterType":
 			if v == "thin" {
 				err = addThinArbiter(reqConf.gdVolReq, req)
@@ -119,27 +117,9 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 	return &reqConf, nil
 }
 
-func validateThinArbiter(req *csi.CreateVolumeRequest) error {
-	if _, ok := req.Parameters["arbiterPath"]; ok {
-		rc, ok := req.Parameters["replicas"]
-		if ok {
-			count, err := strconv.ParseInt(rc, 10, 32)
-			if err != nil {
-				return err
-			}
-			if count != 2 {
-				return errors.New("thin arbiter can only be enabled for replica count 2")
-			}
-		}
-	} else {
-		return errors.New("thin arbiterPath not specified")
-	}
-	return nil
-}
-
 func addThinArbiter(volReq *api.VolCreateReq, req *csi.CreateVolumeRequest) error {
 
-	if err := validateThinArbiter(req); err != nil {
+	if err := utils.ValidateThinArbiter(req); err != nil {
 		return err
 	}
 
@@ -156,23 +136,6 @@ func addThinArbiter(volReq *api.VolCreateReq, req *csi.CreateVolumeRequest) erro
 	volReq.AllowAdvanced = true
 
 	return nil
-}
-
-func parseVolumeParamInt(key, valueString string) (int, error) {
-	errPrefix := fmt.Sprintf("invalid value for parameter '%s'", key)
-	count, err := strconv.Atoi(valueString)
-	if err != nil {
-		return 0, fmt.Errorf("%s, value '%s' must be an integer between %d and %d", errPrefix, valueString, minReplicaCount, maxReplicaCount)
-	}
-
-	if count < minReplicaCount {
-		return 0, fmt.Errorf("%s, value '%s' must be >= %v", errPrefix, valueString, minReplicaCount)
-	}
-	if count > maxReplicaCount {
-		return 0, fmt.Errorf("%s, value '%s' must be <= %v", errPrefix, valueString, maxReplicaCount)
-	}
-
-	return count, nil
 }
 
 // CreateVolume creates and starts the volume

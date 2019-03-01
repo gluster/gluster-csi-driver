@@ -44,7 +44,7 @@ To build, ensure docker is installed, and run:
 
 ### Deploy a GD2 gluster cluster
 
-### 1. RW0 Volume Claim (Gluster Virtual Block CSI driver)
+### 1. RWO Volume Claim (Gluster Virtual Block CSI driver)
 
 ```
 [root@localhost]# cd examples/kubernetes/gluster-virtblock/
@@ -66,7 +66,7 @@ installation method, it should bring your deployment in one shot. Refer
 [GCS deployment guide](https://github.com/gluster/gcs/blob/master/deploy/README.md)
 for more details.
 
-### Create a gluster virtual block storage class
+### Create a gluster virtual block storage class (RWO)
 
 ```
 [root@localhost]# cat storage-class.yaml
@@ -231,6 +231,103 @@ pod "gluster-0" deleted
 
 [root@localhost]# kubectl delete pvc glusterblock-csi-pv
 persistentvolumeclaim "glusterblock-csi-pv" deleted
+```
+
+### Create virtual block PVC with thin arbiter support (RWO)
+
+follow [guide](
+  https://docs.gluster.org/en/latest/Administrator%20Guide/Thin-Arbiter-Volumes/)
+to setup thin arbiter
+
+### Create Thin-Arbiter virtual block storage class (RWO)
+
+```
+$ cat thin-arbiter-virtblock-storageclass.yaml
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: glustervirtblock-csi-thin-arbiter
+provisioner: org.gluster.glustervirtblock
+parameters:
+  replicas: "2"
+  arbiterType: "thin"
+  arbiterPath: "192.168.122.121:/mnt/arbiter-path:24007"
+```
+
+```
+$ kubectl create -f thin-arbiter-virtblock-storageclass.yaml
+storageclass.storage.k8s.io/glustervirtblock-csi-thin-arbiter created
+```
+
+### Create Thin-Arbiter Virtual Block PVC (RWO)
+
+```
+$ cat thin-arbiter-virtblock-pvc.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: glustervirtblock-csi-thin-pv
+spec:
+  storageClassName: glustervirtblock-csi-thin-arbiter
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+```
+$ kube create -f thin-arbiter-virtblock-pvc.yaml
+persistentvolumeclaim/glustervirtblock-csi-thin-pv created
+```
+
+Verify PVC is in Bound state
+
+```
+$ kube get pvc
+NAME                            STATUS        VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                   AGE
+glustervirtblock-csi-thin-pv    Bound         pvc-86b3b70b-1fa0-11e9-9232-525400ea010d   5Gi        RWO            glustervirtblock-csi-arbiter   13m
+
+```
+
+### Create an app with virtual block claim (RWO)
+
+```
+$ cat thin-arbiter-virtblock-pod.yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ta-redis
+  labels:
+    name: redis
+spec:
+  containers:
+    - name: redis
+      image: redis
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/mnt/gluster"
+          name: glustervirtblockcsivol
+  volumes:
+    - name: glustervirtblockcsivol
+      persistentVolumeClaim:
+        claimName: glustervirtblock-csi-thin-pv
+```
+
+```
+$ kube create -f thin-arbiter-virtblock-pod.yaml
+pod/ta-redis created
+```
+
+Verify app is in running state
+
+```
+$ kube get po
+NAME        READY   STATUS        RESTARTS   AGE
+ta-redis    1/1     Running       0          6m54s
 ```
 
 ### 2. RWX Volume Claim (Gluster CSI driver)

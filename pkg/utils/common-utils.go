@@ -1,13 +1,18 @@
 package utils
 
 import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/kubernetes/pkg/util/mount"
-	"os"
-	"strings"
 )
 
 // Common allocation units
@@ -16,6 +21,9 @@ const (
 	MB int64 = 1000 * KB
 	GB int64 = 1000 * MB
 	TB int64 = 1000 * GB
+
+	minReplicaCount = 1
+	maxReplicaCount = 10
 )
 
 var mounter = mount.New("")
@@ -91,4 +99,41 @@ func GetClusterNodes(client *restclient.Client) (string, []string, error) {
 	glog.V(2).Infof("primary and backup gluster servers [%+v,%+v]", glusterServer, bkpservers)
 
 	return glusterServer, bkpservers, err
+}
+
+// ValidateThinArbiter validates the thin arbiter volume parameters
+func ValidateThinArbiter(req *csi.CreateVolumeRequest) error {
+	if _, ok := req.Parameters["arbiterPath"]; ok {
+		rc, ok := req.Parameters["replicas"]
+		if ok {
+			count, err := strconv.ParseInt(rc, 10, 32)
+			if err != nil {
+				return err
+			}
+			if count != 2 {
+				return errors.New("thin arbiter can only be enabled for replica count 2")
+			}
+		}
+	} else {
+		return errors.New("thin arbiterPath not specified")
+	}
+	return nil
+}
+
+// ParseVolumeParamInt validates replicaCount
+func ParseVolumeParamInt(key, valueString string) (int, error) {
+	errPrefix := fmt.Sprintf("invalid value for parameter '%s'", key)
+	count, err := strconv.Atoi(valueString)
+	if err != nil {
+		return 0, fmt.Errorf("%s, value '%s' must be an integer between %d and %d", errPrefix, valueString, minReplicaCount, maxReplicaCount)
+	}
+
+	if count < minReplicaCount {
+		return 0, fmt.Errorf("%s, value '%s' must be >= %v", errPrefix, valueString, minReplicaCount)
+	}
+	if count > maxReplicaCount {
+		return 0, fmt.Errorf("%s, value '%s' must be <= %v", errPrefix, valueString, maxReplicaCount)
+	}
+
+	return count, nil
 }
