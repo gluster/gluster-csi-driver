@@ -43,7 +43,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fccd76e2ec9df3825e1c59832d0117e05f2d303f18febb28139bb7df2a14f6d9"
+  digest = "1:3c55261da311e91ce799dca750473c2e8ae93e4b3b937df28276b319b4a31b04"
   name = "github.com/gluster/glusterd2"
   packages = [
     "pkg/api",
@@ -59,7 +59,7 @@
     "plugins/tracemgmt/api",
   ]
   pruneopts = "NUT"
-  revision = "17bc6f49cc90b46664f05697e92dba897194bc4a"
+  revision = "994aaa0489553334a402feb7d48b458541ba73e1"
 
 [[projects]]
   digest = "1:abea725bcf0210887f5da19d804fffa1dd45a42a56bdf5f02322345e3fee4f0d"

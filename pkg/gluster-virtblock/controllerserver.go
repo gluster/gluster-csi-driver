@@ -2,7 +2,10 @@ package glustervirtblock
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gluster/gluster-csi-driver/pkg/utils"
@@ -43,11 +46,89 @@ type CsiDrvParam struct {
 	CsiDrvVersion    string
 }
 
+func setReplicaCnt(volumeReq *bapi.BlockVolumeCreateRequest, value string) error {
+	replicaCnt, err := utils.ParseVolumeParamInt("replicas", value)
+	if err != nil {
+		return err
+	}
+	volumeReq.HostVolumeInfo.HostVolReplicaCnt = replicaCnt
+	return nil
+}
+func setArbiterReplicaCnt(req *csi.CreateVolumeRequest, volumeReq *bapi.BlockVolumeCreateRequest, value string) error {
+	if value == "thin" {
+		if err := utils.ValidateThinArbiter(req); err != nil {
+			return err
+		}
+		volumeReq.HostVolumeInfo.HostVolReplicaCnt = 2
+		return nil
+	}
+	return fmt.Errorf("invalid arbiterType specified: %s", value)
+}
+
+func setArbiterPath(req *csi.CreateVolumeRequest, volumeReq *bapi.BlockVolumeCreateRequest, value string) error {
+	if _, ok := req.Parameters["arbiterType"]; !ok {
+		glog.Error("only arbiterPath provided, missing arbiterType")
+		return errors.New("only arbiterPath provided, missing arbiterType")
+	}
+	volumeReq.HostVolumeInfo.HostVolThinArbPath = value
+	return nil
+}
+
+func setShardSize(volumeReq *bapi.BlockVolumeCreateRequest, value string) error {
+	shardSize, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return fmt.Errorf("shardSize value: %s must be an integer", value)
+	}
+	volumeReq.HostVolumeInfo.HostVolShardSize = shardSize
+	return nil
+}
+
+func setHostVolumeSize(volumeReq *bapi.BlockVolumeCreateRequest, value string) error {
+	hostVolumeSize, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return fmt.Errorf("hostVolumeSize value: %s must be an integer", value)
+	}
+	volumeReq.HostVolumeInfo.HostVolSize = hostVolumeSize
+	return nil
+}
+
+func parseHostVolumeParams(req *csi.CreateVolumeRequest, volumeReq *bapi.BlockVolumeCreateRequest) error {
+	var err error
+	for k, v := range req.GetParameters() {
+		switch k {
+		case "replicas":
+			err = setReplicaCnt(volumeReq, v)
+		case "arbiterType":
+			err = setArbiterReplicaCnt(req, volumeReq, v)
+		case "arbiterPath":
+			err = setArbiterPath(req, volumeReq, v)
+		case "shardSize":
+			err = setShardSize(volumeReq, v)
+		case "hostVolumeSize":
+			err = setHostVolumeSize(volumeReq, v)
+		default:
+			glog.Errorf("invalid option specified: %s:%s", k, v)
+			err = fmt.Errorf("invalid option specified: %s:%s", k, v)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	var (
+		err                error
+		glusterServer      string
+		bkpServers         []string
+		blockVolCreateResp bapi.BlockVolumeCreateResp
+	)
+
 	glog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
 
-	if err := cs.validateCreateVolumeReq(req); err != nil {
+	if err = cs.validateCreateVolumeReq(req); err != nil {
 		return nil, err
 	}
 
@@ -68,8 +149,13 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		BlockVolumeInfo: &blockVolInfo,
 	}
 
+	err = parseHostVolumeParams(req, &volumeReq)
+	if err != nil {
+		return nil, err
+	}
+
 	glog.V(2).Infof("block volume create request: %+v", volumeReq)
-	blockVolCreateResp, err := cs.client.BlockVolumeCreate(virtBlockProvider, volumeReq)
+	blockVolCreateResp, err = cs.client.BlockVolumeCreate(virtBlockProvider, volumeReq)
 	if err != nil {
 		glog.Errorf("failed to create block volume: %s err: %v", volumeName, err)
 		errResp := cs.client.LastErrorResponse()
@@ -81,7 +167,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.Internal, "failed to create block volume: %s err: %v", volumeName, err)
 	}
 
-	glusterServer, bkpServers, err := utils.GetClusterNodes(cs.client)
+	glusterServer, bkpServers, err = utils.GetClusterNodes(cs.client)
 	if err != nil {
 		glog.Errorf("failed to get cluster nodes: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get cluster nodes: %v", err)
