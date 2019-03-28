@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gluster/gluster-csi-driver/pkg/gluster-virtblock/config"
 	"github.com/gluster/gluster-csi-driver/pkg/utils"
 	"github.com/golang/glog"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
@@ -36,41 +37,47 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	glog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
 
+	volID := req.GetVolumeId()
+	gs := req.GetVolumeContext()["glusterserver"]
+	volume := req.GetVolumeContext()["glustervol"]
+	mo := req.GetVolumeCapability().GetMount().GetMountFlags()
+	if req.GetReadonly() {
+		mo = append(mo, ",ro")
+	}
+	fsType := req.GetVolumeCapability().GetMount().GetFsType()
+	targetPath := req.GetTargetPath()
+
 	err := ns.validateNodePublishVolumeReq(req)
 	if err != nil {
 		return nil, err
 	}
 
-	gs := req.GetVolumeContext()["glusterserver"]
-	volume := req.GetVolumeContext()["glustervol"]
-	hostPath, found := ns.Config.Mounts[volume]
+	mntInfo, found := ns.Config.Mounts[volume]
 	if !found {
 		source := gs + ":" + volume
-		hostPath = path.Join(ns.Config.MntPathPrefix, volume)
-		err = utils.MountVolume(source, hostPath, "glusterfs", nil)
+		mntInfo := config.MntInfo{}
+		mntInfo.MntPath = path.Join(ns.Config.MntPathPrefix, volume)
+		err = utils.MountVolume(source, mntInfo.MntPath, "glusterfs", nil)
 		if err != nil {
 			return nil, err
 		}
-		ns.Config.Mounts[volume] = hostPath
+		mntInfo.RefCount = 0
+		ns.Config.Mounts[volume] = &mntInfo
 	}
-	srcPath := path.Join(hostPath, req.GetVolumeId())
+	srcPath := path.Join(mntInfo.MntPath, volID)
 
 	if _, err = os.Stat(srcPath); os.IsNotExist(err) {
 		glog.Errorf("Block volume doesn't exist: %v", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	mo := req.GetVolumeCapability().GetMount().GetMountFlags()
-	if req.GetReadonly() {
-		mo = append(mo, ",ro")
-	}
-	targetPath := req.GetTargetPath()
-
-	// TODO fs should be argument
-	err = utils.MountVolume(srcPath, targetPath, "xfs", mo)
+	//TODO check if its raw device req.GetVolumeCapability().GetBlock()
+	err = utils.MountVolume(srcPath, targetPath, fsType, mo)
 	if err != nil {
 		return nil, err
 	}
+
+	ns.Config.Mounts[volume].RefCount++
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
@@ -111,6 +118,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	targetPath := req.GetTargetPath()
+	volID := req.GetVolumeId()
 	notMnt, err := mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -124,8 +132,40 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "volume not mounted")
 	}
 
+	/* TODO: Or could also extract the host vol from the mount information,
+	to avoid a BlockVolumeGet network call
+	devicePath, cnt, err := mounter.GetDeviceNameFromMount(mounter, targetPath)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	blkVol := losetup -l devicePath | awk '{ if(NR==2) print $6 }'
+	strings.TrimPrefix(blkVol, ns.Config.MntPathPrefix)
+	strings.TrimPrefix(blkVol, "/")
+	strings.split(blkVol, "/")
+	hostVol := blkVol[0]
+	*/
+
+	blkVol, err := ns.client.BlockVolumeGet(virtBlockProvider, volID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+
+	ns.Config.Mounts[blkVol.HostingVolume].RefCount--
+	if ns.Config.Mounts[blkVol.HostingVolume].RefCount == 0 {
+		err = util.UnmountPath(ns.Config.Mounts[blkVol.HostingVolume].MntPath, mounter)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
 	err = util.UnmountPath(targetPath, mounter)
 	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	err = os.RemoveAll(targetPath)
+	if err != nil {
+		glog.V(2).Infof("failed to remove target path: %s, err: %v", targetPath, err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
