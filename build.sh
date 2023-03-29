@@ -8,11 +8,9 @@ REPO="${REPO:-gluster}"
 # Allow overriding default docker command
 RUNTIME_CMD=${RUNTIME_CMD:-docker}
 
-GO_DEP_VERSION="${GO_DEP_VERSION}"
-GO_METALINTER_VERSION="${GO_METALINTER_VERSION:-v3.0.0}"
-GO_METALINTER_THREADS=${GO_METALINTER_THREADS:-4}
+GOLANGCILINT_VERSION="${GOLANGCILINT_VERSION:-1.52.2}"
 
-build="build"
+build="build --load"
 if [[ "${RUNTIME_CMD}" == "buildah" ]]; then
 	build="bud"
 fi
@@ -82,9 +80,7 @@ BUILDDATE="$(date -u '+%Y-%m-%dT%H:%M:%S.%NZ')"
 
 build_args=()
 build_args+=(--build-arg "RUN_TESTS=$RUN_TESTS")
-build_args+=(--build-arg "GO_DEP_VERSION=$GO_DEP_VERSION")
-build_args+=(--build-arg "GO_METALINTER_VERSION=$GO_METALINTER_VERSION")
-build_args+=(--build-arg "GO_METALINTER_THREADS=$GO_METALINTER_THREADS")
+build_args+=(--build-arg "GOLANGCILINT_VERSION=$GOLANGCILINT_VERSION")
 build_args+=(--build-arg "version=$VERSION")
 build_args+=(--build-arg "builddate=$BUILDDATE")
 
@@ -96,7 +92,6 @@ $RUNTIME_CMD version
 $RUNTIME_CMD $build \
 	-t "${REPO}/${DRIVER}" \
 	"${build_args[@]}" \
-	--network host \
 	-f "$DOCKERFILE" \
 	. ||
 	exit 1

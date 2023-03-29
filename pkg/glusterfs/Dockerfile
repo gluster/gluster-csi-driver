@@ -12,25 +12,21 @@
 
 #-- Create build environment
 
-FROM docker.io/openshift/origin-release:golang-1.11 as build
+FROM golang:1.20 as build
 
 ENV GOPATH="/go/" \
-    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/" \
-    SCRIPTSDIR="${SRCDIR}scripts/"
-
-RUN yum install -y \
-    git
+    SRCDIR="/go/src/github.com/gluster/gluster-csi-driver/"
+ENV SCRIPTSDIR="${SRCDIR}scripts/"
 
 # Install go tools
-ARG GO_DEP_VERSION=
-ARG GO_METALINTER_VERSION=latest
+ARG GOLANGCILINT_VERSION=latest
 COPY scripts/install-go-tools.sh "${SCRIPTSDIR}"
 RUN mkdir -p /go/bin; ${SCRIPTSDIR}/install-go-tools.sh
 
 # Vendor dependencies
-COPY Gopkg.lock Gopkg.toml "${SRCDIR}"
+COPY go.mod go.sum "${SRCDIR}/"
 WORKDIR "${SRCDIR}"
-RUN /go/bin/dep ensure -v -vendor-only
+RUN go mod download
 
 # Copy source directories
 COPY cmd/ "${SRCDIR}/cmd"
@@ -44,24 +40,16 @@ ARG GO_METALINTER_THREADS=1
 ENV TEST_COVERAGE=stdout \
     GO_COVER_DIR=/build/
 
-RUN mkdir /build
-RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/lint-go.sh
-RUN [ $RUN_TESTS -eq 0 ] || ${SCRIPTSDIR}/test-go.sh
-
-#-- Build phase
-
-# Build executable
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /build/glusterfs-csi-driver cmd/glusterfs/main.go
-
-# Ensure the binary is statically linked
-RUN ldd /build/glusterfs-csi-driver | grep -q "not a dynamic executable"
+RUN mkdir /build && \
+    [ $RUN_TESTS -eq 0 ] || ( ${SCRIPTSDIR}/lint-go.sh && \
+    ${SCRIPTSDIR}/test-go.sh ) && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags '-extldflags "-static"' -o /build/glusterfs-csi-driver cmd/glusterfs/main.go
 
 #-- Final container
 
-FROM docker.io/centos:7 as final
+FROM fedora:37 as final
 
 # Install dependencies
-ADD http://artifacts.ci.centos.org/gluster/nightly/release-6.repo  /etc/yum.repos.d/glusterfs-nightly.repo
 RUN yum update -y && \
     yum -y install glusterfs-fuse && \
     yum clean all -y && \
@@ -79,7 +67,7 @@ ARG builddate="(unknown)"
 LABEL build-date="${builddate}"
 LABEL io.k8s.description="FUSE-based CSI driver for Gluster file access"
 LABEL name="glusterfs-csi-driver"
-LABEL Summary="FUSE-based CSI driver for Gluster file access"
+LABEL summary="FUSE-based CSI driver for Gluster file access"
 LABEL vcs-type="git"
 LABEL vcs-url="https://github.com/gluster/gluster-csi-driver"
 LABEL vendor="gluster.org"
