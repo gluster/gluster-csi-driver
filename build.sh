@@ -18,40 +18,8 @@ fi
 # Allow disabling tests during build
 RUN_TESTS=${RUN_TESTS:-1}
 
-SCRIPT=$(basename "$0")
-
-function usage {
-	cmd="$1"
-	cat - <<USAGE
-Usage: $cmd <drivername>
-
-Available drivers:
-    glusterfs
-    glustervirtblock
-USAGE
-}
-
-if [[ $# -ne 1 ]]; then
-	echo "ERROR: No driver name specified."
-	usage "$SCRIPT"
-	exit 1
-fi
-
-case $1 in
-glusterfs)
-	DRIVER=glusterfs-csi-driver
-	DOCKERFILE=pkg/glusterfs/Dockerfile
-	;;
-glustervirtblock)
-	DRIVER=glustervirtblock-csi-driver
-	DOCKERFILE=pkg/gluster-virtblock/Dockerfile
-	;;
-*)
-	echo "ERROR: Invalid driver name specified."
-	usage "$SCRIPT"
-	exit 1
-	;;
-esac
+DRIVER=glusterfs-csi-driver
+DOCKERFILE=pkg/glusterfs/Dockerfile
 
 
 # This sets the version variable to (hopefully) a semver compatible string. We
