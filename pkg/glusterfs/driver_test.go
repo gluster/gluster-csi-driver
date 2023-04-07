@@ -264,7 +264,10 @@ func handlePOSTRequest(w http.ResponseWriter, r *http.Request, t *testing.T) {
 
 		var req api.VolCreateReq
 		defer r.Body.Close()
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		resp.Name = req.Name
 		volumeCache[req.Name] = volume{Size: req.Size}
 		writeResp(w, http.StatusCreated, resp, t)
