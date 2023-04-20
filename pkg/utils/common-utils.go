@@ -9,10 +9,10 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/glusterd2/pkg/restclient"
-	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/util/mount"
+	"k8s.io/klog/v2"
+	mount "k8s.io/mount-utils"
 )
 
 // Common allocation units
@@ -96,7 +96,7 @@ func GetClusterNodes(client *restclient.Client) (string, []string, error) {
 		}
 
 	}
-	glog.V(2).Infof("primary and backup gluster servers [%+v,%+v]", glusterServer, bkpservers)
+	klog.V(2).Infof("primary and backup gluster servers [%+v,%+v]", glusterServer, bkpservers)
 
 	return glusterServer, bkpservers, err
 }

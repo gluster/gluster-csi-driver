@@ -16,7 +16,7 @@ import (
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/kubernetes-csi/csi-test/pkg/sanity"
 	"github.com/pborman/uuid"
-	"k8s.io/kubernetes/pkg/util/mount"
+	mount "k8s.io/mount-utils"
 )
 
 type volume struct {
