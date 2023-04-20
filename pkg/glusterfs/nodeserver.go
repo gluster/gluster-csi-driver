@@ -1,42 +1,32 @@
 package glusterfs
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/glog"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/volume/util"
+	"k8s.io/klog/v2"
+	mount "k8s.io/mount-utils"
 )
 
 // NodeServer struct of Glusterfs CSI driver with supported methods of CSI node
 // server spec.
 type NodeServer struct {
 	*GfDriver
+	mounter mount.Interface
 }
 
 var glusterMounter = mount.New("")
 
-// NodeStageVolume mounts the volume to a staging path on the node.
-func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
-}
-
-// NodeUnstageVolume unstages the volume from the staging path
-func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
-}
-
 // NodePublishVolume mounts the volume mounted to the staging path to the target
 // path
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	glog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
+	klog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
 
 	if err := ns.validateNodePublishVolumeReq(req); err != nil {
 		return nil, err
@@ -98,15 +88,6 @@ func doMount(source, targetPath string, mo []string) error {
 	return nil
 }
 
-// NodeGetVolumeStats returns volume capacity statistics available for the
-// volume
-func (ns *NodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-
-	// TODO need to implement volume status call
-	return nil, status.Error(codes.Unimplemented, "")
-
-}
-
 func (ns *NodeServer) validateNodePublishVolumeReq(req *csi.NodePublishVolumeRequest) error {
 	if req == nil {
 		return status.Error(codes.InvalidArgument, "request cannot be empty")
@@ -154,7 +135,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "volume not mounted")
 	}
 
-	err = util.UnmountPath(req.GetTargetPath(), glusterMounter)
+	err = mount.CleanupMountPoint(req.GetTargetPath(), glusterMounter, false)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -172,4 +153,23 @@ func (ns *NodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 // NodeGetCapabilities returns the supported capabilities of the node server
 func (ns *NodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	return &csi.NodeGetCapabilitiesResponse{}, nil
+}
+
+// NodeStageVolume mounts the volume to a staging path on the node.
+func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+// NodeUnstageVolume unstages the volume from the staging path
+func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+// NodeGetVolumeStats returns volume capacity statistics available for the
+// volume
+func (ns *NodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+
+	// TODO need to implement volume status call
+	return nil, status.Error(codes.Unimplemented, "")
+
 }

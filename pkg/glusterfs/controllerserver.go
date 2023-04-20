@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/gluster/gluster-csi-driver/pkg/utils"
+	"k8s.io/klog/v2"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gluster/glusterd2/pkg/api"
 	gd2Error "github.com/gluster/glusterd2/pkg/errors"
-	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
@@ -101,13 +101,13 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 			}
 		case "arbiterPath":
 			if _, ok := req.Parameters["arbiterType"]; !ok {
-				glog.Error("only arbiterPath provided, missing arbiterType")
+				klog.Error("only arbiterPath provided, missing arbiterType")
 			}
 			//skip incase of arbiterPath and arbiterType are provided
 		case "brickType":
 			err = setBrickType(&reqConf, v)
 		default:
-			glog.Errorf("invalid option specified: %s:%s", k, v)
+			klog.Errorf("invalid option specified: %s:%s", k, v)
 		}
 		if err != nil {
 			return nil, err
@@ -140,13 +140,13 @@ func addThinArbiter(volReq *api.VolCreateReq, req *csi.CreateVolumeRequest) erro
 
 // CreateVolume creates and starts the volume
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	glog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
+	klog.V(2).Infof("request received %+v", protosanitizer.StripSecrets(req))
 
 	if err := cs.validateCreateVolumeReq(req); err != nil {
 		return nil, err
 	}
 
-	glog.V(1).Infof("creating volume with name %s", req.Name)
+	klog.V(1).Infof("creating volume with name %s", req.Name)
 
 	volSizeBytes := cs.getVolumeSize(req)
 
@@ -166,13 +166,13 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	err = cs.checkExistingVolume(volumeName, volSizeBytes)
 	if err != nil {
 		if err != errVolumeNotFound {
-			glog.Errorf("error checking for pre-existing volume: %v", err)
+			klog.Errorf("error checking for pre-existing volume: %v", err)
 			return nil, err
 		}
 
 		if req.VolumeContentSource.GetSnapshot().GetSnapshotId() != "" {
 			snapName := req.VolumeContentSource.GetSnapshot().GetSnapshotId()
-			glog.V(2).Infof("creating volume from snapshot %s", snapName)
+			klog.V(2).Infof("creating volume from snapshot %s", snapName)
 			err = cs.checkExistingSnapshot(snapName, req.GetName())
 			if err != nil {
 				return nil, err
@@ -190,13 +190,13 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		// we dont need to delete the volume if volume start fails as we are
 		// listing the volumes and starting it again before sending back the
 		// response
-		glog.Errorf("failed to start volume: %v", err)
+		klog.Errorf("failed to start volume: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to start volume: %v", err)
 	}
 
 	glusterServer, bkpServers, err := utils.GetClusterNodes(cs.client)
 	if err != nil {
-		glog.Errorf("failed to get cluster nodes: %v", err)
+		klog.Errorf("failed to get cluster nodes: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get cluster nodes: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		},
 	}
 
-	glog.V(4).Infof("CSI volume response: %+v", protosanitizer.StripSecrets(resp))
+	klog.V(4).Infof("CSI volume response: %+v", protosanitizer.StripSecrets(resp))
 	return resp, nil
 }
 
@@ -242,7 +242,7 @@ func (cs *ControllerServer) checkExistingSnapshot(snapName, volName string) erro
 		}
 		err = cs.client.SnapshotActivate(actReq, snapName)
 		if err != nil {
-			glog.Errorf("failed to activate snapshot: %v", err)
+			klog.Errorf("failed to activate snapshot: %v", err)
 			return status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 		}
 	}
@@ -256,10 +256,10 @@ func (cs *ControllerServer) createSnapshotClone(snapName, volName string) error 
 	snapreq.CloneName = volName
 	snapResp, err := cs.client.SnapshotClone(snapName, snapreq)
 	if err != nil {
-		glog.Errorf("failed to create volume clone: %v", err)
+		klog.Errorf("failed to create volume clone: %v", err)
 		return status.Errorf(codes.Internal, "failed to create volume clone: %s", err.Error())
 	}
-	glog.V(1).Infof("snapshot clone response : %+v", snapResp)
+	klog.V(1).Infof("snapshot clone response : %+v", snapResp)
 	return nil
 }
 
@@ -286,12 +286,12 @@ func (cs *ControllerServer) validateCreateVolumeReq(req *csi.CreateVolumeRequest
 }
 
 func (cs *ControllerServer) doVolumeCreate(volumeReq *api.VolCreateReq) error {
-	glog.V(4).Infof("received request to create volume %s with size %d", volumeReq.Name, volumeReq.Size)
+	klog.V(4).Infof("received request to create volume %s with size %d", volumeReq.Name, volumeReq.Size)
 
-	glog.V(2).Infof("volume create request: %+v", volumeReq)
+	klog.V(2).Infof("volume create request: %+v", volumeReq)
 	volumeCreateResp, err := cs.client.VolumeCreate(*volumeReq)
 	if err != nil {
-		glog.Errorf("failed to create volume: %v", err)
+		klog.Errorf("failed to create volume: %v", err)
 		errResp := cs.client.LastErrorResponse()
 		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusConflict {
@@ -301,7 +301,7 @@ func (cs *ControllerServer) doVolumeCreate(volumeReq *api.VolCreateReq) error {
 		return status.Errorf(codes.Internal, "failed to create volume: %v", err)
 	}
 
-	glog.V(3).Infof("volume create response : %+v", volumeCreateResp)
+	klog.V(3).Infof("volume create response : %+v", volumeCreateResp)
 	return nil
 }
 
@@ -313,7 +313,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes 
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return errVolumeNotFound
 		}
-		glog.Errorf("failed to fetch volume : %v", err)
+		klog.Errorf("failed to fetch volume : %v", err)
 		return status.Errorf(codes.Internal, "error in fetching volume details %v", err)
 	}
 
@@ -336,7 +336,7 @@ func (cs *ControllerServer) checkExistingVolume(volumeName string, volSizeBytes 
 		}
 	}
 
-	glog.Infof("requested volume %s already exists in the gluster cluster", volumeName)
+	klog.Infof("requested volume %s already exists in the gluster cluster", volumeName)
 
 	return nil
 }
@@ -351,7 +351,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "volume ID is nil")
 	}
-	glog.V(2).Infof("deleting volume with ID: %s", volumeID)
+	klog.V(2).Infof("deleting volume with ID: %s", volumeID)
 
 	// Stop volume
 	err := cs.client.VolumeStop(req.VolumeId)
@@ -363,7 +363,7 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			return &csi.DeleteVolumeResponse{}, nil
 		}
 		if err.Error() != gd2Error.ErrVolAlreadyStopped.Error() {
-			glog.Errorf("failed to stop volume %s: %v", volumeID, err)
+			klog.Errorf("failed to stop volume %s: %v", volumeID, err)
 			return nil, status.Errorf(codes.Internal, "failed to stop volume %s: %v", volumeID, err)
 		}
 	}
@@ -376,11 +376,11 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		glog.Errorf("deleting volume %s failed: %v", req.VolumeId, err)
+		klog.Errorf("deleting volume %s failed: %v", req.VolumeId, err)
 		return nil, status.Errorf(codes.Internal, "deleting volume %s failed: %v", req.VolumeId, err)
 	}
 
-	glog.Infof("successfully deleted volume %s", volumeID)
+	klog.Infof("successfully deleted volume %s", volumeID)
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
@@ -443,7 +443,7 @@ func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		},
 	}
 
-	glog.V(1).Infof("GlusterFS CSI driver volume capabilities: %+v", resp)
+	klog.V(1).Infof("GlusterFS CSI driver volume capabilities: %+v", resp)
 	return resp, nil
 }
 
@@ -511,11 +511,11 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	if err := cs.validateCreateSnapshotReq(req); err != nil {
 		return nil, err
 	}
-	glog.V(2).Infof("received request to create snapshot %v from volume %v", req.GetName(), req.GetSourceVolumeId())
+	klog.V(2).Infof("received request to create snapshot %v from volume %v", req.GetName(), req.GetSourceVolumeId())
 
 	snapInfo, err := cs.client.SnapshotInfo(req.GetName())
 	if err != nil {
-		glog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
+		klog.Errorf("failed to get snapshot info for %v with Error %v", req.GetName(), err.Error())
 		errResp := cs.client.LastErrorResponse()
 		// errResp will be nil in case of No route to host error
 		if errResp != nil && errResp.StatusCode != http.StatusNotFound {
@@ -529,7 +529,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	} else {
 
 		if snapInfo.ParentVolName != req.GetSourceVolumeId() {
-			glog.Errorf("snapshot %v belongs to different volume %v", req.GetName(), snapInfo.ParentVolName)
+			klog.Errorf("snapshot %v belongs to different volume %v", req.GetName(), snapInfo.ParentVolName)
 			return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot - snapshot %s belongs to different volume %s", snapInfo.ParentVolName, req.GetSourceVolumeId())
 		}
 		createdAt, errT := ptypes.TimestampProto(snapInfo.CreatedAt)
@@ -572,10 +572,10 @@ func (cs *ControllerServer) doSnapshot(name, sourceVolID string) (*api.SnapCreat
 		Force:    true,
 	}
 
-	glog.V(2).Infof("snapshot request: %+v", snapReq)
+	klog.V(2).Infof("snapshot request: %+v", snapReq)
 	snapResp, err := cs.client.SnapshotCreate(snapReq)
 	if err != nil {
-		glog.Errorf("failed to create snapshot %v", err)
+		klog.Errorf("failed to create snapshot %v", err)
 		errResp := cs.client.LastErrorResponse()
 		// errResp will be nil in case of `No route to host` error
 		if errResp != nil && errResp.StatusCode == http.StatusConflict {
@@ -589,7 +589,7 @@ func (cs *ControllerServer) doSnapshot(name, sourceVolID string) (*api.SnapCreat
 	}
 	err = cs.client.SnapshotActivate(actReq, name)
 	if err != nil {
-		glog.Errorf("failed to activate snapshot %v", err)
+		klog.Errorf("failed to activate snapshot %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to activate snapshot %s", err.Error())
 	}
 	return &snapResp, nil
@@ -621,7 +621,7 @@ func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	if req.GetSnapshotId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot - snapshotId is empty")
 	}
-	glog.V(4).Infof("deleting snapshot %s", req.GetSnapshotId())
+	klog.V(4).Infof("deleting snapshot %s", req.GetSnapshotId())
 
 	err := cs.client.SnapshotDeactivate(req.GetSnapshotId())
 	if err != nil {
@@ -631,7 +631,7 @@ func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		}
 
 		if err.Error() != gd2Error.ErrSnapDeactivated.Error() {
-			glog.Errorf("failed to deactivate snapshot %v", err)
+			klog.Errorf("failed to deactivate snapshot %v", err)
 			return nil, status.Errorf(codes.Internal, "DeleteSnapshot - failed to deactivate snapshot %s", err.Error())
 		}
 
@@ -642,7 +642,7 @@ func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		if errResp != nil && errResp.StatusCode == http.StatusNotFound {
 			return &csi.DeleteSnapshotResponse{}, nil
 		}
-		glog.Errorf("failed to delete snapshot %v", err)
+		klog.Errorf("failed to delete snapshot %v", err)
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot - failed to delete snapshot %s", err.Error())
 	}
 	return &csi.DeleteSnapshotResponse{}, nil
@@ -676,14 +676,14 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 				resp := csi.ListSnapshotsResponse{}
 				return &resp, nil
 			}
-			glog.Errorf("failed to list snapshots %v", err)
+			klog.Errorf("failed to list snapshots %v", err)
 			return nil, status.Errorf(codes.Internal, "ListSnapshot - failed to get snapshots %s", err.Error())
 		}
 	} else {
 		// Get all snapshots
 		snaplist, err = cs.client.SnapshotList("")
 		if err != nil {
-			glog.Errorf("failed to list snapshots %v", err)
+			klog.Errorf("failed to list snapshots %v", err)
 			return nil, status.Errorf(codes.Internal, "failed to get snapshots %s", err.Error())
 		}
 	}
@@ -700,7 +700,7 @@ func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshot
 			resp := csi.ListSnapshotsResponse{}
 			return &resp, nil
 		}
-		glog.Errorf("failed to get snapshot info %v", err)
+		klog.Errorf("failed to get snapshot info %v", err)
 		return nil, status.Errorf(codes.NotFound, "ListSnapshot - failed to get snapshot info %s", err.Error())
 
 	}
