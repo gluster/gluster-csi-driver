@@ -18,14 +18,13 @@ import (
 // server spec.
 type NodeServer struct {
 	*GfDriver
-	mounter mount.Interface
 }
 
 var glusterMounter = mount.New("")
 
 // NodePublishVolume mounts the volume mounted to the staging path to the target
 // path
-func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(2).Infof("received node publish volume request %+v", protosanitizer.StripSecrets(req))
 
 	if err := ns.validateNodePublishVolumeReq(req); err != nil {
@@ -108,7 +107,7 @@ func (ns *NodeServer) validateNodePublishVolumeReq(req *csi.NodePublishVolumeReq
 }
 
 // NodeUnpublishVolume unmounts the volume from the target path
-func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (ns *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "request cannot be empty")
 	}

@@ -8,16 +8,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gluster/gluster-csi-driver/pkg/utils"
-	"k8s.io/klog/v2"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gluster/gluster-csi-driver/pkg/utils"
 	"github.com/gluster/glusterd2/pkg/api"
 	gd2Error "github.com/gluster/glusterd2/pkg/errors"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -532,10 +531,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			klog.Errorf("snapshot %v belongs to different volume %v", req.GetName(), snapInfo.ParentVolName)
 			return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot - snapshot %s belongs to different volume %s", snapInfo.ParentVolName, req.GetSourceVolumeId())
 		}
-		createdAt, errT := ptypes.TimestampProto(snapInfo.CreatedAt)
-		if errT != nil {
-			return nil, status.Error(codes.Internal, err.Error())
-		}
+		createdAt := timestamppb.New(snapInfo.CreatedAt)
 		return &csi.CreateSnapshotResponse{
 			Snapshot: &csi.Snapshot{
 				SnapshotId:     snapInfo.VolInfo.Name,
@@ -551,10 +547,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	if err != nil {
 		return nil, err
 	}
-	createdAt, err := ptypes.TimestampProto(snapResp.CreatedAt)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
+	createdAt := timestamppb.New(snapInfo.CreatedAt)
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     snapResp.VolInfo.Name,
@@ -705,10 +698,7 @@ func (cs *ControllerServer) listSnapshotFromID(snapID string) (*csi.ListSnapshot
 
 	}
 
-	createdAt, err := ptypes.TimestampProto(snap.CreatedAt)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
+	createdAt := timestamppb.New(snap.CreatedAt)
 	entries = append(entries, &csi.ListSnapshotsResponse_Entry{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     snap.VolInfo.Name,
@@ -732,10 +722,7 @@ func (cs *ControllerServer) doPagination(req *csi.ListSnapshotsRequest, snapList
 	var entries []*csi.ListSnapshotsResponse_Entry
 	for _, snap := range snapList {
 		for _, s := range snap.SnapList {
-			createdAt, err := ptypes.TimestampProto(s.CreatedAt)
-			if err != nil {
-				return nil, status.Error(codes.Internal, err.Error())
-			}
+			createdAt := timestamppb.New(s.CreatedAt)
 			entries = append(entries, &csi.ListSnapshotsResponse_Entry{
 				Snapshot: &csi.Snapshot{
 					SnapshotId:     s.VolInfo.Name,

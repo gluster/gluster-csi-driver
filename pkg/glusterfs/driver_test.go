@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
-
 	"github.com/gluster/glusterd2/pkg/api"
 	"github.com/gluster/glusterd2/pkg/restclient"
 	"github.com/kubernetes-csi/csi-test/pkg/sanity"
