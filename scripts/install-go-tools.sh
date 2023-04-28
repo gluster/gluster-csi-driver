@@ -13,7 +13,7 @@ install_golangci-lint() {
   fi
 
   echo "Installing golangci-lint. Version: ${VER}"
-  curl -L "https://github.com/golangci/golangci-lint/releases/download/v${VER}/golangci-lint-${VER}-linux-amd64.tar.gz" | tar xzv -C "${GOBINDIR}" "golangci-lint-${VER}-linux-amd64/golangci-lint" --strip 1
+  go install github.com/golangci/golangci-lint/cmd/golangci-lint@${VER}
 }
 
 install_golangci-lint

@@ -4,10 +4,9 @@ import (
 	"time"
 
 	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
-	"k8s.io/klog/v2"
-
 	"github.com/gluster/glusterd2/pkg/restclient"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"k8s.io/klog/v2"
 )
 
 const (
