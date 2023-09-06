@@ -36,6 +36,7 @@ func main() {
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	cmd.PersistentFlags().StringVar(&options.NodeID, "nodeid", "", "CSI node id")
 	_ = cmd.MarkPersistentFlagRequired("nodeid")
+	cmd.PersistentFlags().StringVar(&options.Endpoint, "endpoint", "", "CSI endpoint to connect to")
 	cmd.PersistentFlags().StringVar(&options.DriverName, "driver-name", "", "CSI driver name")
 	cmd.PersistentFlags().StringVar(&options.Kubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	cmd.PersistentFlags().StringVar(&options.MetricsAddress, "metrics-address", "", "metrics address")
