@@ -42,10 +42,11 @@ type Driver struct {
 }
 
 type DriverOptions struct {
-	Endpoint   string
-	NodeID     string
-	DriverName string
-	Kubeconfig string
+	Endpoint       string
+	NodeID         string
+	DriverName     string
+	Kubeconfig     string
+	MetricsAddress string
 }
 
 // New returns CSI driver
