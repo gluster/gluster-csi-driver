@@ -17,7 +17,7 @@ import (
 // NodeServer struct of Glusterfs CSI driver with supported methods of CSI node
 // server spec.
 type NodeServer struct {
-	*GfDriver
+	*Driver
 	mounter mount.Interface
 }
 
@@ -146,7 +146,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 // NodeGetInfo returns NodeGetInfoResponse for CO.
 func (ns *NodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
-		NodeId: ns.GfDriver.NodeID,
+		NodeId: ns.Driver.nodeID,
 	}, nil
 }
 
@@ -168,6 +168,15 @@ func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 // NodeGetVolumeStats returns volume capacity statistics available for the
 // volume
 func (ns *NodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+
+	// TODO need to implement volume status call
+	return nil, status.Error(codes.Unimplemented, "")
+
+}
+
+// NodeExpandVolume returns volume capacity statistics available for the
+// volume
+func (ns *NodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 
 	// TODO need to implement volume status call
 	return nil, status.Error(codes.Unimplemented, "")

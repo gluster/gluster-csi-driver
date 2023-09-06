@@ -6,44 +6,34 @@ import (
 	"os"
 
 	gfd "github.com/gluster/gluster-csi-driver/pkg/glusterfs"
-	"github.com/gluster/gluster-csi-driver/pkg/glusterfs/config"
 
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	// #nosec
 	_ = flag.Set("logtostderr", "true")
 }
 
 func main() {
-	// #nosec
 	_ = flag.CommandLine.Parse([]string{})
-	var config = config.NewConfig()
+	var options = &gfd.DriverOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "glusterfs-csi-driver",
 		Short: "GlusterFS CSI driver",
 		Run: func(cmd *cobra.Command, args []string) {
-			handle(config)
+			handle(options)
 		},
 	}
 
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
-	cmd.PersistentFlags().StringVar(&config.NodeID, "nodeid", "", "CSI node id")
-	// #nosec
+	cmd.PersistentFlags().StringVar(&options.NodeID, "nodeid", "", "CSI node id")
 	_ = cmd.MarkPersistentFlagRequired("nodeid")
 
-	cmd.PersistentFlags().StringVar(&config.Endpoint, "endpoint", "", "CSI endpoint")
+	cmd.PersistentFlags().StringVar(&options.DriverName, "driver-name", "", "CSI driver name")
 
-	cmd.PersistentFlags().StringVar(&config.RestURL, "resturl", "", "glusterd2 rest endpoint")
-
-	cmd.PersistentFlags().StringVar(&config.RestUser, "username", "glustercli", "glusterd2 user name")
-
-	cmd.PersistentFlags().StringVar(&config.RestSecret, "restsecret", "", "glusterd2 rest user secret")
-
-	cmd.PersistentFlags().IntVar(&config.RestTimeout, "resttimeout", 30, "glusterd2 rest client timeout")
+	cmd.PersistentFlags().StringVar(&options.Kubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 
 	if err := cmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -51,14 +41,14 @@ func main() {
 	}
 }
 
-func handle(config *config.Config) {
-	if config.Endpoint == "" {
-		config.Endpoint = os.Getenv("CSI_ENDPOINT")
+func handle(options *gfd.DriverOptions) {
+	if options.Endpoint == "" {
+		options.Endpoint = os.Getenv("CSI_ENDPOINT")
 	}
-	d := gfd.New(config)
+	d := gfd.NewDriver(options)
 	if d == nil {
 		fmt.Println("Failed to initialize GlusterFS CSI driver")
 		os.Exit(1)
 	}
-	d.Run()
+	d.Run(options.Endpoint, options.Kubeconfig, false)
 }
